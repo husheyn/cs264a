@@ -20,10 +20,7 @@
  * Note variable indices range from 1 to n where n is the number of variables
  ******************************************************************************/
 Var* index2varp(unsigned long i, SatState* sat_state) {
-
-  // ... TO DO ..
-  
-  return NULL; // dummy valued
+    return sat_state->variables[i];
 }
 
 
@@ -41,24 +38,15 @@ Var* index2varp(unsigned long i, SatState* sat_state) {
  * Do not forget to update the status of literals when you run unit resolution
  ******************************************************************************/
 Lit* pos_literal(Var* var) {
-
-  // ... TO DO ..
-  
-  return NULL; // dummy value
+    return var->pos_literal;
 }
 
 Lit* neg_literal(Var* var) {
-
-  // ... TO DO ..
-  
-  return NULL; // dummy value
+    return var->neg_literal;
 }
 
 BOOLEAN set_literal(Lit* lit) {
-
-  // ... TO DO ..
-  
-  return 0; // dummy value
+    return lit->is_set;
 }
 
 /******************************************************************************
@@ -68,10 +56,14 @@ BOOLEAN set_literal(Lit* lit) {
  * Note clause indices range from 1 to m where m is the number of clauses 
  ******************************************************************************/
 Clause* index2clausep(unsigned long i, SatState* sat_state) {
-
-  // ... TO DO ..
-
-  return NULL; // dummy value
+    ClauseNode* cur;
+    if (i < sat_state->m) cur = sat_state->CNF_clauses;
+    else cur = sat_state->learned_clauses;
+    while (i > 1) {
+        cur = cur->next;
+        --i;
+    }
+    return cur->clause;
 }
  
 
@@ -84,10 +76,7 @@ Clause* index2clausep(unsigned long i, SatState* sat_state) {
  * Do not forget to update the status of clauses when you run unit resolution
  ******************************************************************************/
 BOOLEAN subsumed_clause(Clause* clause) {
-
-  // ... TO DO ..
- 
-  return 0; // dummy value
+    return clause->is_subsumed;
 }
 
 

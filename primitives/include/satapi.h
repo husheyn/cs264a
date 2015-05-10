@@ -17,20 +17,6 @@ typedef char BOOLEAN;
  ******************************************************************************/
 
 /******************************************************************************
- * Variables:
- * --You must represent variables using the following struct 
- * --Variable index must start at 1
- * --Index of a variable must be of type "unsigned long"
- ******************************************************************************/
-
-typedef struct {
-
-  // ... TO DO ..
-
-} Var;
-
-
-/******************************************************************************
  * Literals:
  * --You must represent literals using the following struct 
  * --Positive literals' indices range from 1 to n (n is the number of variables)
@@ -39,11 +25,66 @@ typedef struct {
  ******************************************************************************/
 
 typedef struct {
-
-  // ... TO DO ..
-
+    signed long index;
+    BOOLEAN is_set;
 } Lit;
 
+Lit* Lit_new(signed long id) {
+    Lit* literal = malloc(sizeof(Lit));
+    literal->index = id;
+    literal->is_set = 0;
+    return literal;
+}
+
+typedef struct LitNode {
+    Lit* literal;
+    struct LitNode* next;
+    struct LitNode* prev;
+} LitNode;
+
+LitNode* LitNode_new(Lit* literal, LitNode* prev, LitNode* next) {
+    LitNode* node = malloc(sizeof(LitNode));
+    node->literal = literal;
+    node->prev = prev;
+    node->next = next;
+    return node;
+}
+
+
+/******************************************************************************
+ * Variables:
+ * --You must represent variables using the following struct 
+ * --Variable index must start at 1
+ * --Index of a variable must be of type "unsigned long"
+ ******************************************************************************/
+
+typedef struct {
+    unsigned long index;
+    Lit* pos_literal;
+    Lit* neg_literal;
+} Var;
+
+Var* Var_new(unsigned long id) {
+    Var* var = malloc(sizeof(Var));
+    var->index = id;
+    var->pos_literal = Lit_new(id);
+    var->pos_literal = Lit_new((signed long)id * -1);
+    return var;
+}
+
+typedef struct VarNode {
+    Var* var;
+    struct VarNode* next;
+    struct VarNode* prev;
+} VarNode;
+
+VarNode* VarNode_new(Var* var, VarNode* prev, VarNode* next) {
+    VarNode* node = malloc(sizeof(VarNode));
+    node->var = var;
+    node->prev = prev;
+    node->next = next;
+    return node;
+}
 
 /******************************************************************************
  * Clauses: 
@@ -54,11 +95,32 @@ typedef struct {
  ******************************************************************************/
 
 typedef struct {
-
-  // ... TO DO ..
-
+    unsigned long index;
+    VarNode* vars;
+    BOOLEAN is_subsumed;
 } Clause;
 
+Clause* Clause_new(unsigned long id, VarNode* vars) {
+    Clause* clause = malloc(sizeof(Clause));
+    clause->index = id;
+    clause->vars = vars;
+    clause->is_subsumed = 0;
+    return clause;
+}
+
+typedef struct ClauseNode {
+    Clause* clause;
+    struct ClauseNode* next;
+    struct ClauseNode* prev;
+} ClauseNode;
+
+ClauseNode* ClauseNode_new(Clause* clause, ClauseNode* prev, ClauseNode* next) {
+    ClauseNode* node = malloc(sizeof(ClauseNode));
+    node->clause = clause;
+    node->prev = prev;
+    node->next = next;
+    return node;
+}
 
 /******************************************************************************
  * SatState: 
@@ -67,9 +129,13 @@ typedef struct {
  ******************************************************************************/
 
 typedef struct {
-
-  // ... TO DO ..
-
+    unsigned long n;    // number of variables
+    unsigned long m;    // number of clauses
+    Var** variables;
+    ClauseNode* CNF_clauses;
+    ClauseNode* learned_clauses;
+    LitNode* implied_literals;
+    Clause* asserted_clause;
 } SatState;
 
 
