@@ -57,8 +57,11 @@ BOOLEAN set_literal(Lit* lit) {
  ******************************************************************************/
 Clause* index2clausep(unsigned long i, SatState* sat_state) {
     ClauseNode* cur;
-    if (i < sat_state->m) cur = sat_state->CNF_clauses;
-    else cur = sat_state->learned_clauses;
+    if (i <= sat_state->m) cur = sat_state->CNF_clauses;
+    else {
+        cur = sat_state->learned_clauses;
+        i -= m;
+    }
     while (i > 1) {
         cur = cur->next;
         --i;
