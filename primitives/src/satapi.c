@@ -20,7 +20,7 @@
  * Note variable indices range from 1 to n where n is the number of variables
  ******************************************************************************/
 Var* index2varp(unsigned long i, SatState* sat_state) {
-    return sat_state->variables[i];
+    return sat_state->variables[i - 1];
 }
 
 
@@ -38,15 +38,30 @@ Var* index2varp(unsigned long i, SatState* sat_state) {
  * Do not forget to update the status of literals when you run unit resolution
  ******************************************************************************/
 Lit* pos_literal(Var* var) {
-    return var->pos_literal;
+    if (var)
+        return var->pos_literal;
+    else {
+        printf("Var is NULL\n");
+        return NULL;
+    }
 }
 
 Lit* neg_literal(Var* var) {
-    return var->neg_literal;
+    if (var)
+        return var->neg_literal;
+    else {
+        printf("Var is NULL\n");
+        return NULL;
+    }
 }
 
 BOOLEAN set_literal(Lit* lit) {
-    return lit->is_set;
+    if (lit)
+        return lit->is_set;
+    else {
+        printf("Lit is NULL\n");
+        return 0;
+    }
 }
 
 /******************************************************************************
@@ -60,7 +75,7 @@ Clause* index2clausep(unsigned long i, SatState* sat_state) {
     if (i <= sat_state->m) cur = sat_state->CNF_clauses;
     else {
         cur = sat_state->learned_clauses;
-        i -= m;
+        i -= sat_state->m;
     }
     while (i > 1) {
         cur = cur->next;
@@ -102,18 +117,124 @@ BOOLEAN subsumed_clause(Clause* clause) {
  * You should also write a function that frees the memory allocated by a
  * SatState (free_sat_state)
  ******************************************************************************/
-SatState* construct_sat_state(char* cnf_fname) {
 
-  // ... TO DO ..
-  
-  return NULL; // dummy value
+char* read_next_number(char* p, long* num) {
+    long sign = 1;
+    *num = 0;
+    while (*p && !(*p >= '0' && *p <= '9') && *p != '-') ++p;
+    if (*p == '-') {
+        sign = -1;
+        ++p;
+    }
+    while (*p >= '0' && *p <= '9') {
+        *num = *num * 10 + (*p - '0');
+        ++p;
+    }
+    *num = *num * sign;
+    return p;
+}
+
+void print_state(SatState* state) {
+    printf("# of variables: %lu\n", state->n);
+    //for(int i = 0; i < state->n; ++i)
+    //    printf("%lu\n", state->variables[i]->index);
+    printf("# of input clauses: %lu\n", state->m);
+    ClauseNode* node = state->CNF_clauses;
+    while (node != NULL) {
+        LitNode* literals = node->clause->literals;
+        while (literals != NULL) {
+            printf("%ld ", literals->literal->index);
+            literals = literals->prev;
+        }
+        printf("\n");
+        node = node->prev;
+    }
+    printf("end\n");
+}
+
+SatState* construct_sat_state(char* cnf_fname) {
+    FILE *fp = fopen(cnf_fname, "r");
+    if (fp == NULL) {
+        printf("Error: file %s cannot be open", cnf_fname);
+        return NULL;
+    }
+    SatState* state = malloc(sizeof(SatState));
+    char* line = (char*)malloc(sizeof(char) * (128 + 5));
+    char* ptr = line;
+    while (fgets(line, 128, fp) != NULL) {
+        if (line[0] != 'p') continue;
+        else {
+            long tmp;
+            line = read_next_number(line, &tmp);
+            state->n = (unsigned long)tmp;
+            line = read_next_number(line, &tmp);
+            state->m = (unsigned long)tmp;
+            // initialize n variables and literals
+            state->variables = malloc(sizeof(Var*) * state->n);
+            for(int i = 0; i < state->n; ++i) {
+                Var* var = Var_new((unsigned long)i + 1);
+                state->variables[i] = var;
+            }
+            state->CNF_clauses = NULL;
+            state->learned_clauses = NULL;
+            state->implied_literals = NULL;
+            state->asserted_clause = NULL;
+            for(int i = 1; i <= state->m; ++i) {
+                ClauseNode* tail = state->CNF_clauses;
+                LitNode* literals = NULL;
+                fgets(line, 128, fp);
+                while (1) {
+                    line = read_next_number(line, &tmp);
+                    if (tmp == 0) break;
+                    Lit* lit = NULL;
+                    if (tmp > 0)
+                        lit = pos_literal(index2varp(tmp, state));
+                    else
+                        lit = neg_literal(index2varp(-tmp, state));
+                    LitNode* t = literals;
+                    literals = LitNode_new(lit, t, NULL);
+                    if (t != NULL)
+                        t->next = literals;
+                }
+                Clause* clause = Clause_new(i, literals);
+                state->CNF_clauses = ClauseNode_new(clause, tail, NULL);
+                if (tail != NULL)
+                    tail->next = state->CNF_clauses;
+            }
+            break; //while
+        }
+    }
+    free(ptr);
+    fclose(fp);
+    //print_state(state);
+    return state;
 }
 
 void free_sat_state(SatState* sat_state) {
-
-  // ... TO DO ..
- 
-  return; // dummy value
+    for(int i = 0; i < sat_state->n; ++i) {
+        Var* var = index2varp(i + 1, sat_state);
+        Var_delete(var);
+    }
+    free(sat_state->variables);
+    ClauseNode* tail = sat_state->CNF_clauses;
+    while (tail != NULL) {
+        ClauseNode* del = tail;
+        tail = tail->prev;
+        ClauseNode_delete(del);
+    }
+    tail = sat_state->learned_clauses;
+    while (tail != NULL) {
+        ClauseNode* del = tail;
+        tail = tail->prev;
+        ClauseNode_delete(del);
+    }
+    LitNode* literals = sat_state->implied_literals;
+    while (literals != NULL) {
+        LitNode* del = literals;
+        literals = literals->prev;
+        LitNode_delete(del);
+    }
+    Clause_delete(sat_state->asserted_clause);
 }
 
 

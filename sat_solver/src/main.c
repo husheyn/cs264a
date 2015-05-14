@@ -61,7 +61,6 @@ int main(int argc, char* argv[]) {
     printf("%s",USAGE_MSG);
     exit(1);
   }
-	
   // construct a sat state and then check satisfiability
   SatState* sat_state = construct_sat_state(cnf_fname);
   if(sat(sat_state)) printf("SAT\n");

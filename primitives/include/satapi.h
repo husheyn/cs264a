@@ -36,11 +36,18 @@ Lit* Lit_new(signed long id) {
     return literal;
 }
 
-typedef struct LitNode {
+void Lit_delete(Lit* lit) {
+    if (lit)
+        free(lit);
+}
+
+typedef struct LitNode LitNode;
+
+struct LitNode {
     Lit* literal;
-    struct LitNode* next;
-    struct LitNode* prev;
-} LitNode;
+    LitNode* next;
+    LitNode* prev;
+};
 
 LitNode* LitNode_new(Lit* literal, LitNode* prev, LitNode* next) {
     LitNode* node = malloc(sizeof(LitNode));
@@ -50,6 +57,10 @@ LitNode* LitNode_new(Lit* literal, LitNode* prev, LitNode* next) {
     return node;
 }
 
+void LitNode_delete(LitNode* node) {
+    if (node)
+        free(node);
+}
 
 /******************************************************************************
  * Variables:
@@ -68,22 +79,16 @@ Var* Var_new(unsigned long id) {
     Var* var = malloc(sizeof(Var));
     var->index = id;
     var->pos_literal = Lit_new(id);
-    var->pos_literal = Lit_new((signed long)id * -1);
+    var->neg_literal = Lit_new((signed long)id * -1);
     return var;
 }
 
-typedef struct VarNode {
-    Var* var;
-    struct VarNode* next;
-    struct VarNode* prev;
-} VarNode;
-
-VarNode* VarNode_new(Var* var, VarNode* prev, VarNode* next) {
-    VarNode* node = malloc(sizeof(VarNode));
-    node->var = var;
-    node->prev = prev;
-    node->next = next;
-    return node;
+void Var_delete(Var* var) {
+    if (var) {
+        Lit_delete(var->pos_literal);
+        Lit_delete(var->neg_literal);
+        free(var);
+    }
 }
 
 /******************************************************************************
@@ -96,23 +101,37 @@ VarNode* VarNode_new(Var* var, VarNode* prev, VarNode* next) {
 
 typedef struct {
     unsigned long index;
-    VarNode* vars;
+    LitNode* literals;
     BOOLEAN is_subsumed;
 } Clause;
 
-Clause* Clause_new(unsigned long id, VarNode* vars) {
+Clause* Clause_new(unsigned long id, LitNode* literals) {
     Clause* clause = malloc(sizeof(Clause));
     clause->index = id;
-    clause->vars = vars;
+    clause->literals = literals;
     clause->is_subsumed = 0;
     return clause;
 }
 
-typedef struct ClauseNode {
+void Clause_delete(Clause* clause) {
+    if (clause) {
+        LitNode* tail = clause->literals;
+        while (tail != NULL) {
+            LitNode* del = tail;
+            tail = tail->prev;
+            LitNode_delete(del);
+        }
+        free(clause);
+    }
+}
+
+typedef struct ClauseNode ClauseNode;
+
+struct ClauseNode {
     Clause* clause;
-    struct ClauseNode* next;
-    struct ClauseNode* prev;
-} ClauseNode;
+    ClauseNode* next;
+    ClauseNode* prev;
+};
 
 ClauseNode* ClauseNode_new(Clause* clause, ClauseNode* prev, ClauseNode* next) {
     ClauseNode* node = malloc(sizeof(ClauseNode));
@@ -120,6 +139,13 @@ ClauseNode* ClauseNode_new(Clause* clause, ClauseNode* prev, ClauseNode* next) {
     node->prev = prev;
     node->next = next;
     return node;
+}
+
+void ClauseNode_delete(ClauseNode* node) {
+    if (node) {
+        Clause_delete(node->clause);
+        free(node);
+    }
 }
 
 /******************************************************************************
