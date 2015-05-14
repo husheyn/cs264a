@@ -175,6 +175,7 @@ SatState* construct_sat_state(char* cnf_fname) {
                 Var* var = Var_new((unsigned long)i + 1);
                 state->variables[i] = var;
             }
+            state->n_clauses = m;
             state->CNF_clauses = NULL;
             state->learned_clauses = NULL;
             state->decided_literals = NULL;
