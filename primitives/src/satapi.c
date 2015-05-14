@@ -175,7 +175,7 @@ SatState* construct_sat_state(char* cnf_fname) {
                 Var* var = Var_new((unsigned long)i + 1);
                 state->variables[i] = var;
             }
-            state->n_clauses = m;
+            state->n_clauses = state->m;
             state->CNF_clauses = NULL;
             state->learned_clauses = NULL;
             state->decided_literals = NULL;
@@ -318,6 +318,7 @@ void undo_unit_resolution(SatState* sat_state) {
  * literals implied by unit resolution is L+1
  ******************************************************************************/
 BOOLEAN decide_literal(Lit* lit, SatState* sat_state) {
+    ++sat_state->current_level;
     lit->decision_level = sat_state->current_level;
     LitNode* node = LitNode_new(lit, sat_state->decided_literals, NULL);
     sat_state->decided_literals->next = node;
