@@ -29,39 +29,19 @@ typedef struct {
     unsigned long decision_level;
 } Lit;
 
-Lit* Lit_new(signed long id) {
-    Lit* literal = malloc(sizeof(Lit));
-    literal->index = id;
-    literal->decision_level = 1;
-    return literal;
-}
-
-void Lit_delete(Lit* lit) {
-    if (lit)
-        free(lit);
-}
+Lit* Lit_new(signed long id);
+void Lit_delete(Lit* lit);
 
 typedef struct LitNode LitNode;
-
 struct LitNode {
     Lit* literal;
     LitNode* next;
     LitNode* prev;
 };
 
-LitNode* LitNode_new(Lit* literal, LitNode* prev, LitNode* next) {
-    LitNode* node = malloc(sizeof(LitNode));
-    node->literal = literal;
-    node->prev = prev;
-    node->next = next;
-    return node;
-}
-
+LitNode* LitNode_new(Lit* literal, LitNode* prev, LitNode* next);
 // only delete the LitNode, does not touch the underlying literal
-void LitNode_delete(LitNode* node) {
-    if (node)
-        free(node);
-}
+void LitNode_delete(LitNode* node);
 
 /******************************************************************************
  * Variables:
@@ -76,22 +56,10 @@ typedef struct {
     Lit* neg_literal;
 } Var;
 
-Var* Var_new(unsigned long id) {
-    Var* var = malloc(sizeof(Var));
-    var->index = id;
-    var->pos_literal = Lit_new(id);
-    var->neg_literal = Lit_new((signed long)id * -1);
-    return var;
-}
-
+Var* Var_new(unsigned long id);
 // delete the variable and its corresponding literals
-void Var_delete(Var* var) {
-    if (var) {
-        Lit_delete(var->pos_literal);
-        Lit_delete(var->neg_literal);
-        free(var);
-    }
-}
+void Var_delete(Var* var);
+
 
 /******************************************************************************
  * Clauses: 
@@ -108,51 +76,21 @@ typedef struct {
     unsigned long assertion_level;
 } Clause;
 
-Clause* Clause_new(unsigned long id, LitNode* literals) {
-    Clause* clause = malloc(sizeof(Clause));
-    clause->index = id;
-    clause->literals = literals;
-    clause->is_subsumed = 0;
-    clause->assertion_level = 1;
-    return clause;
-}
-
+Clause* Clause_new(unsigned long id, LitNode* literals);
 // delete the clause and the literal list inside it
-void Clause_delete(Clause* clause) {
-    if (clause) {
-        LitNode* tail = clause->literals;
-        while (tail != NULL) {
-            LitNode* del = tail;
-            tail = tail->prev;
-            LitNode_delete(del);
-        }
-        free(clause);
-    }
-}
+void Clause_delete(Clause* clause);
+
 
 typedef struct ClauseNode ClauseNode;
-
 struct ClauseNode {
     Clause* clause;
     ClauseNode* next;
     ClauseNode* prev;
 };
 
-ClauseNode* ClauseNode_new(Clause* clause, ClauseNode* prev, ClauseNode* next) {
-    ClauseNode* node = malloc(sizeof(ClauseNode));
-    node->clause = clause;
-    node->prev = prev;
-    node->next = next;
-    return node;
-}
-
+ClauseNode* ClauseNode_new(Clause* clause, ClauseNode* prev, ClauseNode* next);
 // delete the ClauseNode and clause inside it
-void ClauseNode_delete(ClauseNode* node) {
-    if (node) {
-        Clause_delete(node->clause);
-        free(node);
-    }
-}
+void ClauseNode_delete(ClauseNode* node);
 
 /******************************************************************************
  * SatState: 

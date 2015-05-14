@@ -12,6 +12,87 @@
  * --You should carefully read the descriptions and must follow each requirement
  ******************************************************************************/
 
+/******************************************************************************
+ * Implement new and delete functions for the data structures
+ ******************************************************************************/
+
+Lit* Lit_new(signed long id) {
+    Lit* literal = malloc(sizeof(Lit));
+    literal->index = id;
+    literal->decision_level = 1;
+    return literal;
+}
+
+void Lit_delete(Lit* lit) {
+    if (lit)
+        free(lit);
+}
+
+LitNode* LitNode_new(Lit* literal, LitNode* prev, LitNode* next) {
+    LitNode* node = malloc(sizeof(LitNode));
+    node->literal = literal;
+    node->prev = prev;
+    node->next = next;
+    return node;
+}
+
+void LitNode_delete(LitNode* node) {
+    if (node)
+        free(node);
+}
+
+Var* Var_new(unsigned long id) {
+    Var* var = malloc(sizeof(Var));
+    var->index = id;
+    var->pos_literal = Lit_new(id);
+    var->neg_literal = Lit_new((signed long)id * -1);
+    return var;
+}
+
+void Var_delete(Var* var) {
+    if (var) {
+        Lit_delete(var->pos_literal);
+        Lit_delete(var->neg_literal);
+        free(var);
+    }
+}
+
+Clause* Clause_new(unsigned long id, LitNode* literals) {
+    Clause* clause = malloc(sizeof(Clause));
+    clause->index = id;
+    clause->literals = literals;
+    clause->is_subsumed = 0;
+    clause->assertion_level = 1;
+    return clause;
+}
+
+void Clause_delete(Clause* clause) {
+    if (clause) {
+        LitNode* tail = clause->literals;
+        while (tail != NULL) {
+            LitNode* del = tail;
+            tail = tail->prev;
+            LitNode_delete(del);
+        }
+        free(clause);
+    }
+}
+
+ClauseNode* ClauseNode_new(Clause* clause, ClauseNode* prev, ClauseNode* next) {
+    ClauseNode* node = malloc(sizeof(ClauseNode));
+    node->clause = clause;
+    node->prev = prev;
+    node->next = next;
+    return node;
+}
+
+void ClauseNode_delete(ClauseNode* node) {
+    if (node) {
+        Clause_delete(node->clause);
+        free(node);
+    }
+}
+
 
 /******************************************************************************
  * Given a variable index i, you should return the corresponding variable

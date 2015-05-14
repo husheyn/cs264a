@@ -18,9 +18,13 @@
  * If all literals are set, then it returns NULL
  ******************************************************************************/
 Lit* get_free_literal(SatState* sat_state) {
-
-  // ... TO DO ..
-  
+  for(int i = 0; i < sat_state->n; ++i) {
+      Var* var = index2varp(i + 1, sat_state);
+      Lit* pos = pos_literal(var);
+      Lit* neg = neg_literal(var);
+      if (!set_literal(pos) && !set_literal(neg))
+          return pos;
+  }
   return NULL; // dummy value
 }
 
