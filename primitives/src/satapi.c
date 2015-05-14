@@ -208,7 +208,7 @@ SatState* construct_sat_state(char* cnf_fname) {
     }
     free(ptr);
     fclose(fp);
-    print_state(state);
+    //print_state(state);
     return state;
 }
 
