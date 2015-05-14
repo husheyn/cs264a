@@ -136,8 +136,8 @@ char* read_next_number(char* p, long* num) {
 
 void print_state(SatState* state) {
     printf("# of variables: %lu\n", state->n);
-    //for(int i = 0; i < state->n; ++i)
-    //    printf("%lu\n", state->variables[i]->index);
+    for(int i = 0; i < state->n; ++i)
+        printf("%lu\n", state->variables[i]->index);
     printf("# of input clauses: %lu\n", state->m);
     ClauseNode* node = state->CNF_clauses;
     while (node != NULL) {
@@ -182,6 +182,7 @@ SatState* construct_sat_state(char* cnf_fname) {
             for(int i = 1; i <= state->m; ++i) {
                 ClauseNode* tail = state->CNF_clauses;
                 LitNode* literals = NULL;
+                line = ptr; // restore start position of buffer
                 fgets(line, 128, fp);
                 while (1) {
                     line = read_next_number(line, &tmp);
@@ -203,10 +204,11 @@ SatState* construct_sat_state(char* cnf_fname) {
             }
             break; //while
         }
+        line = ptr; // restore start position of buffer
     }
     free(ptr);
     fclose(fp);
-    //print_state(state);
+    print_state(state);
     return state;
 }
 
