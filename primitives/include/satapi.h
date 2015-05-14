@@ -26,13 +26,13 @@ typedef char BOOLEAN;
 
 typedef struct {
     signed long index;
-    BOOLEAN is_set;
+    unsigned long decision_level;
 } Lit;
 
 Lit* Lit_new(signed long id) {
     Lit* literal = malloc(sizeof(Lit));
     literal->index = id;
-    literal->is_set = 0;
+    literal->decision_level = 1;
     return literal;
 }
 
@@ -57,6 +57,7 @@ LitNode* LitNode_new(Lit* literal, LitNode* prev, LitNode* next) {
     return node;
 }
 
+// only delete the LitNode, does not touch the underlying literal
 void LitNode_delete(LitNode* node) {
     if (node)
         free(node);
@@ -83,6 +84,7 @@ Var* Var_new(unsigned long id) {
     return var;
 }
 
+// delete the variable and its corresponding literals
 void Var_delete(Var* var) {
     if (var) {
         Lit_delete(var->pos_literal);
@@ -103,6 +105,7 @@ typedef struct {
     unsigned long index;
     LitNode* literals;
     BOOLEAN is_subsumed;
+    unsigned long assertion_level;
 } Clause;
 
 Clause* Clause_new(unsigned long id, LitNode* literals) {
@@ -110,9 +113,11 @@ Clause* Clause_new(unsigned long id, LitNode* literals) {
     clause->index = id;
     clause->literals = literals;
     clause->is_subsumed = 0;
+    clause->assertion_level = 1;
     return clause;
 }
 
+// delete the clause and the literal list inside it
 void Clause_delete(Clause* clause) {
     if (clause) {
         LitNode* tail = clause->literals;
@@ -141,6 +146,7 @@ ClauseNode* ClauseNode_new(Clause* clause, ClauseNode* prev, ClauseNode* next) {
     return node;
 }
 
+// delete the ClauseNode and clause inside it
 void ClauseNode_delete(ClauseNode* node) {
     if (node) {
         Clause_delete(node->clause);
@@ -163,6 +169,7 @@ typedef struct {
     Var** variables;
     ClauseNode* CNF_clauses;
     ClauseNode* learned_clauses;
+    LitNode* decided_literals;
     LitNode* implied_literals;
     Clause* asserted_clause;
 } SatState;

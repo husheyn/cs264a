@@ -57,7 +57,7 @@ Lit* neg_literal(Var* var) {
 
 BOOLEAN set_literal(Lit* lit) {
     if (lit)
-        return lit->is_set;
+        return lit->decision_level != 1;
     else {
         printf("Lit is NULL\n");
         return 0;
@@ -177,6 +177,7 @@ SatState* construct_sat_state(char* cnf_fname) {
             }
             state->CNF_clauses = NULL;
             state->learned_clauses = NULL;
+            state->decided_literals = NULL;
             state->implied_literals = NULL;
             state->asserted_clause = NULL;
             for(int i = 1; i <= state->m; ++i) {
@@ -231,7 +232,13 @@ void free_sat_state(SatState* sat_state) {
         tail = tail->prev;
         ClauseNode_delete(del);
     }
-    LitNode* literals = sat_state->implied_literals;
+    LitNode* literals = sat_state->decided_literals;
+    while (literals != NULL) {
+        LitNode* del = literals;
+        literals = literals->prev;
+        LitNode_delete(del);
+    }
+    literals = sat_state->implied_literals;
     while (literals != NULL) {
         LitNode* del = literals;
         literals = literals->prev;
@@ -283,10 +290,21 @@ BOOLEAN unit_resolution(SatState* sat_state) {
  * level
  ******************************************************************************/
 void undo_unit_resolution(SatState* sat_state) {
-
-  // ... TO DO ..
-
-  return; // dummy value
+    LitNode* cur = sat_state->implied_literals;
+    while (cur != NULL) {
+        Lit* lit = cur->literal;
+        if (lit->decision_level == sat_state->current_level) {
+            lit->decision_level = 1;
+            LitNode* next = cur->next;
+            LitNode* prev = cur->prev;
+            if (prev != NULL) prev->next = next;
+            if (next != NULL) next->prev = prev;
+            LitNode_delete(cur);
+            cur = prev;
+        } else {
+            cur = cur->prev;
+        }
+    }
 }
 
 
@@ -299,10 +317,11 @@ void undo_unit_resolution(SatState* sat_state) {
  * literals implied by unit resolution is L+1
  ******************************************************************************/
 BOOLEAN decide_literal(Lit* lit, SatState* sat_state) {
-
-  // ... TO DO ..
-
-  return 0; // dummy value
+    lit->decision_level = sat_state->current_level;
+    LitNode* node = LitNode_new(lit, sat_state->decided_literals, NULL);
+    sat_state->decided_literals->next = node;
+    sat_state->decided_literals = node;
+    return unit_resolution(sat_state);
 }
 
 
@@ -314,10 +333,13 @@ BOOLEAN decide_literal(Lit* lit, SatState* sat_state) {
  * should be updated to L-1 before the call ends
  ******************************************************************************/
 void undo_decide_literal(SatState* sat_state) {
-
-  // ... TO DO ..
-
-  return; // dummy value
+    LitNode* cur = sat_state->decided_literals;
+    sat_state->decided_literals = cur->prev;
+    if (sat_state->decided_literals != NULL)
+        sat_state->decided_literals->next = NULL;
+    LitNode_delete(cur);
+    undo_unit_resolution(sat_state);
+    --sat_state->current_level;
 }
 
 
@@ -343,10 +365,18 @@ void undo_decide_literal(SatState* sat_state) {
  * which no decision is made) 
  ******************************************************************************/
 BOOLEAN add_asserting_clause(SatState* sat_state) {
-
-  // ... TO DO ..
-
-  return 0; // dummy value
+    ClauseNode* cur = ClauseNode_new(sat_state->asserted_clause,
+                      sat_state->learned_clauses,
+                      NULL);
+    if (sat_state->learned_clauses != NULL)
+        sat_state->learned_clauses->next = cur;
+    sat_state->learned_clauses = cur;
+    if (unit_resolution(sat_state)) {
+        sat_state->asserted_clause = NULL;
+        return 1;
+    } else {
+        return 0;
+    }
 }
 
 
@@ -359,10 +389,7 @@ BOOLEAN add_asserting_clause(SatState* sat_state) {
  * of the asserting clause, 0 otherwise
  ******************************************************************************/
 BOOLEAN at_assertion_level(SatState* sat_state) {
-
-  // ... TO DO ..
-
-  return 0; // dummy value
+    return sat_state->asserted_clause->assertion_level == sat_state->current_level;
 }
 
 
@@ -371,10 +398,7 @@ BOOLEAN at_assertion_level(SatState* sat_state) {
  * which is 1 (i.e., the level in which no decision is made), 0 otherwise
  ******************************************************************************/
 BOOLEAN at_start_level(SatState* sat_state) {
-
-  // ... TO DO ..
-
-  return 0; // dummy value
+    return sat_state->current_level == 1;
 }
 
 
@@ -388,10 +412,7 @@ BOOLEAN at_start_level(SatState* sat_state) {
  * unit resolution (i.e., the call add_asserting_clause(SatState*) returns 1)
  ******************************************************************************/
 BOOLEAN conflict_exists(SatState* sat_state) {
-
-  // ... TO DO ..
-
-  return 0; // dummy value
+    return sat_state->asserted_clause != NULL;
 }
 
 /******************************************************************************
