@@ -157,6 +157,9 @@ void ClauseNode_delete(ClauseNode* node) {
 typedef struct {
     unsigned long n;    // number of variables
     unsigned long m;    // number of clauses
+    // start level 1; first decided literal would have 2 
+    // as its decision level
+    unsigned long current_level; 
     Var** variables;
     ClauseNode* CNF_clauses;
     ClauseNode* learned_clauses;
