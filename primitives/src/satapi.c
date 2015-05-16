@@ -360,10 +360,68 @@ void free_sat_state(SatState* sat_state) {
  * Yet, the first decided literal must have 2 as its decision level
  ******************************************************************************/
 BOOLEAN unit_resolution(SatState* sat_state) {
-
-  // ... TO DO ..
- 
-  return 0; // dummy value
+    unsigned long n_unset_lit = 0;
+    unsigned long n_false_lit = 0;
+    unsigned long n_total_lit = 0;
+    int conflict = 0;
+    Lit * unset_lit = NULL;
+    for (unsigned long i = 1; i <= sat_state->n_clauses; i ++) {
+        Clause* clause = index2clausep(i, sat_state);
+        n_unset_lit = 0;
+        n_false_lit = 0;
+        n_total_lit = 0;
+        LitNode * lits = clause->literals;
+        while (lits != NULL) {
+            Lit* comp_lit = NULL;
+            if (lits->literal->index < 0)
+                comp_lit = pos_literal(index2varp(-lits->literal->index, sat_state));
+            else
+                comp_lit = neg_literal(index2varp(lits->literal->index, sat_state));
+            if (set_literal(lits->literal)) {
+                // A TRUE has been found, no need to continue on this clause
+                clause->is_subsumed = 1;
+                break;
+            }
+            else if (set_literal(comp_lit)) {
+                // A FALSE has been found, continue
+                clause->is_subsumed = 1;
+                n_false_lit ++;
+            } else {
+                // Lit has not been implied
+                n_unset_lit ++;
+                unset_lit = lits->literal;
+            }
+            lits = lits->next;
+            n_total_lit ++;
+        }
+        if (n_unset_lit == 1 && lits == NULL) {
+            // Unit resolution implied unset_lit
+            // WARNING: if decision_level is set 1 as default, then there would be problem
+            // in the next sentence. So Song suggest set default decision_level to 0
+            unset_lit->decision_level = sat_state->current_level;
+            LitNode * node = LitNode_new(unset_lit, sat_state->implied_literals, NULL);
+            if (sat_state->implied_literals != NULL) {
+                sat_state->implied_literals->next = node;
+            }
+            sat_state->implied_literals = node;
+            
+            // To start over unit resolution
+            i = 0;
+        }
+        if (lits == NULL && n_total_lit == n_false_lit) {
+            // Unit resolution found conflict
+            // Might need to save some variables here for finding assertion clause
+            conflict = 1;
+            break;
+        }
+    }
+    if (conflict) {
+        Clause* asserted_clause = NULL;
+        // TODO...
+        sat_state->asserted_clause = asserted_clause;
+        return add_asserting_clause(sat_state);
+    }
+    else return 1;
 }
 
 
@@ -454,6 +512,7 @@ BOOLEAN add_asserting_clause(SatState* sat_state) {
     if (sat_state->learned_clauses != NULL)
         sat_state->learned_clauses->next = cur;
     sat_state->learned_clauses = cur;
+    sat_state->n_clauses++; // Song
     if (unit_resolution(sat_state)) {
         sat_state->asserted_clause = NULL;
         return 1;
