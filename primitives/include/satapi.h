@@ -43,6 +43,15 @@ LitNode* LitNode_new(Lit* literal, LitNode* prev, LitNode* next);
 // only delete the LitNode, does not touch the underlying literal
 void LitNode_delete(LitNode* node);
 
+typedef struct DAGNode DAGNode;
+struct DAGNode {
+    Lit* literal;
+    DAGNode** from;
+};
+
+DAGNode* DAGNode_new(Lit* literal, DAGNode** from);
+void DAGNode_delete(DAGNode* node);
+
 /******************************************************************************
  * Variables:
  * --You must represent variables using the following struct 

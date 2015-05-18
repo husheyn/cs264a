@@ -93,6 +93,18 @@ void ClauseNode_delete(ClauseNode* node) {
     }
 }
 
+DAGNode* DAGNode_new(Lit* literal, DAGNode** from) {
+    DAGNode* node = malloc(sizeof(DAGNode));
+    node->literal = literal;
+    node->from = from;
+    return node;
+}
+
+void DAGNode_delete(DAGNode* node) {
+    if (node) {
+        free(node);
+    }
+}
 
 /******************************************************************************
  * Given a variable index i, you should return the corresponding variable
