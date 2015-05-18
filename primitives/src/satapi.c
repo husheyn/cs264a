@@ -19,7 +19,7 @@
 Lit* Lit_new(signed long id) {
     Lit* literal = malloc(sizeof(Lit));
     literal->index = id;
-    literal->decision_level = 1;
+    literal->decision_level = 0;
     return literal;
 }
 
@@ -138,7 +138,7 @@ Lit* neg_literal(Var* var) {
 
 BOOLEAN set_literal(Lit* lit) {
     if (lit)
-        return lit->decision_level != 1;
+        return lit->decision_level != 0;
     else {
         printf("Lit is NULL\n");
         return 0;
@@ -159,7 +159,7 @@ Clause* index2clausep(unsigned long i, SatState* sat_state) {
         i -= sat_state->m;
     }
     while (i > 1) {
-        cur = cur->next;
+        cur = cur->prev;
         --i;
     }
     return cur->clause;
@@ -324,6 +324,7 @@ void free_sat_state(SatState* sat_state) {
     while (literals != NULL) {
         LitNode* del = literals;
         literals = literals->prev;
+        //printf("deleting: %ld\n",del->literal->index);
         LitNode_delete(del);
     }
     Clause_delete(sat_state->asserted_clause);
@@ -391,7 +392,7 @@ BOOLEAN unit_resolution(SatState* sat_state) {
                 n_unset_lit ++;
                 unset_lit = lits->literal;
             }
-            lits = lits->next;
+            lits = lits->prev;
             n_total_lit ++;
         }
         if (n_unset_lit == 1 && lits == NULL) {
@@ -404,7 +405,7 @@ BOOLEAN unit_resolution(SatState* sat_state) {
                 sat_state->implied_literals->next = node;
             }
             sat_state->implied_literals = node;
-            
+            printf("implied_literals: %ld \n",node->literal->index);
             // To start over unit resolution
             i = 0;
         }
@@ -419,7 +420,9 @@ BOOLEAN unit_resolution(SatState* sat_state) {
         Clause* asserted_clause = NULL;
         // TODO...
         sat_state->asserted_clause = asserted_clause;
-        return add_asserting_clause(sat_state);
+        //return add_asserting_clause(sat_state);
+        printf("contradiction found\n");
+        return 0;
     }
     else return 1;
 }
@@ -434,11 +437,12 @@ void undo_unit_resolution(SatState* sat_state) {
     while (cur != NULL) {
         Lit* lit = cur->literal;
         if (lit->decision_level == sat_state->current_level) {
-            lit->decision_level = 1;
+            lit->decision_level = 0;
             LitNode* next = cur->next;
             LitNode* prev = cur->prev;
             if (prev != NULL) prev->next = next;
             if (next != NULL) next->prev = prev;
+            sat_state->implied_literals = prev;
             LitNode_delete(cur);
             cur = prev;
         } else {
@@ -460,8 +464,10 @@ BOOLEAN decide_literal(Lit* lit, SatState* sat_state) {
     ++sat_state->current_level;
     lit->decision_level = sat_state->current_level;
     LitNode* node = LitNode_new(lit, sat_state->decided_literals, NULL);
-    sat_state->decided_literals->next = node;
+    if (sat_state->decided_literals != NULL)
+        sat_state->decided_literals->next = node;
     sat_state->decided_literals = node;
+    printf("literal %ld decided\n",node->literal->index);
     return unit_resolution(sat_state);
 }
 
@@ -512,7 +518,7 @@ BOOLEAN add_asserting_clause(SatState* sat_state) {
     if (sat_state->learned_clauses != NULL)
         sat_state->learned_clauses->next = cur;
     sat_state->learned_clauses = cur;
-    sat_state->n_clauses++; // Song
+    sat_state->n_clauses++;
     if (unit_resolution(sat_state)) {
         sat_state->asserted_clause = NULL;
         return 1;
