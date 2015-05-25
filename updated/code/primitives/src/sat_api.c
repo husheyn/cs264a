@@ -112,20 +112,6 @@ void LitNode_delete(LitNode* node) {
     }
 }
 
-DAGNode* DAGNode_new(Lit* literal, DAGNode** from) {
-    DAGNode* node = malloc(sizeof(DAGNode));
-    node->literal = literal;
-    node->from = from;
-    return node;
-}
-
-void DAGNode_delete(DAGNode* node) {
-    if (node) {
-        if (node->from) free(node->from);
-        free(node);
-    }
-}
-
 //returns a literal structure for the corresponding index
 Lit* sat_index2literal(c2dLiteral index, const SatState* sat_state) {
     if (index > 0) {
@@ -487,6 +473,47 @@ void sat_state_free(SatState* sat_state) {
  *
  * Yet, the first decided literal must have 2 as its decision level
  ******************************************************************************/
+
+void backtrack(Lit* cur, Lit** marks, c2dSize highest_level) {
+    if (cur->decision_level < highest_level ||
+        (cur->decision_level == highest_level && cur->implied_by == NULL)) {
+        c2dSize id = sat_literal_var(cur)->index - 1;
+        marks[id] = cur;
+    } else {
+        for(c2dSize i = 0; i < cur->n_implied_by; ++i)
+            backtrack(cur->implied_by[i], marks, highest_level);
+    }
+}
+
+Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
+    c2dSize highest_level = 0;
+    for(c2dSize i = 0; i < clause->n_literals; ++i)
+        if (clause->literals[i]->decision_level > highest_level)
+            highest_level = clause->literals[i]->decision_level;
+    if (highest_level == 1) return NULL;
+    Lit** marks = malloc(sizeof(Lit*) * sat_state->n);
+    for(c2dSize i = 0; i < sat_state->n; ++i)
+        marks[i] = NULL;
+    for(c2dSize i = 0; i < clause->n_literals; ++i)
+        backtrack(clause->literals[i], marks, highest_level);
+    c2dSize cnt = 0;
+    for(c2dSize i = 0; i < sat_state->n; ++i)
+        if (marks[i] != NULL)
+            ++cnt;
+    Lit** lits = malloc(sizeof(Lit*) * cnt);
+    cnt = 0;
+    for(c2dSize i = 0; i < sat_state->n; ++i)
+        if (marks[i] != NULL) {
+            Var* var = sat_literal_var(marks[i]);
+            if (marks[i]->index > 0)
+                lits[cnt] = sat_neg_literal(var);
+            else
+                lits[cnt] = sat_pos_literal(var);
+            ++cnt;
+        }
+    Clause* res = Clause_new(sat_clause_count(sat_state) + 1, lits, cnt);
+    return res;
+}
 
 //applies unit resolution to the cnf of sat state
 //returns 1 if unit resolution succeeds, 0 if it finds a contradiction

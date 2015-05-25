@@ -93,15 +93,6 @@ struct LitNode {
 LitNode* LitNode_new(Lit* literal, LitNode* prev, LitNode* next);
 void LitNode_delete(LitNode* node);
 
-typedef struct DAGNode DAGNode;
-struct DAGNode {
-    Lit* literal;
-    DAGNode** from;
-};
-
-DAGNode* DGANode_new(Lit* literal, DAGNode** from);
-void DAGNode_delete(DAGNode* node);
-
 /******************************************************************************
  * Clauses: 
  * --You must represent clauses using the following struct 
