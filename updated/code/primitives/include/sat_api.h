@@ -38,6 +38,9 @@ typedef unsigned long c2dSize;  //for variables, clauses, and various things
 typedef signed long c2dLiteral; //for literals
 typedef double c2dWmc;          //for (weighted) model count
 
+
+#define BUF_LEN 32768
+
 /******************************************************************************
  * Basic structures
  ******************************************************************************/

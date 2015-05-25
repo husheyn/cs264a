@@ -157,9 +157,13 @@ Clause* sat_decide_literal(Lit* lit, SatState* sat_state) {
     if (sat_state->decided_literals != NULL)
         sat_state->decided_literals->next = node;
     sat_state->decided_literals = node;
-    printf("literal %ld decided at level %ld\n",node->literal->index, sat_state->current_level);
-    sat_unit_resolution(sat_state);
-    return sat_state->asserted_clause;
+    //printf("literal %ld decided at level %ld\n",node->literal->index, sat_state->current_level);
+    if (sat_unit_resolution(sat_state)) {
+        sat_state->asserted_clause = NULL;
+        return NULL;
+    } else {
+        return sat_state->asserted_clause;
+    }
 }
 
 //undoes the last literal decision and the corresponding implications obtained by unit resolution
@@ -181,7 +185,7 @@ void sat_undo_decide_literal(SatState* sat_state) {
     if (sat_state->decided_literals != NULL)
         sat_state->decided_literals->next = NULL;
     LitNode_delete(cur);
-    printf("literal %ld undecided at level %ld\n",cur->literal->index, sat_state->current_level);
+    //printf("literal %ld undecided at level %ld\n",cur->literal->index, sat_state->current_level);
     sat_undo_unit_resolution(sat_state);
     --sat_state->current_level;
 }
@@ -342,8 +346,6 @@ char* read_next_number(char* p, long* num) {
 
 void print_state(SatState* state) {
     printf("# of variables: %lu\n", state->n);
-    for(int i = 0; i < state->n; ++i)
-        printf("%lu\n", state->variables[i]->index);
     printf("# of input clauses: %lu\n", state->m);
     for(c2dSize i = 0; i < state->m; ++i) {
         for(c2dSize j = 0; j < state->CNF_clauses[i]->n_literals; ++j)
@@ -362,9 +364,9 @@ SatState* sat_state_new(const char* file_name) {
         return NULL;
     }
     SatState* state = malloc(sizeof(SatState));
-    char* line = (char*)malloc(sizeof(char) * (128 + 5));
+    char* line = (char*)malloc(sizeof(char) * (BUF_LEN + 5));
     char* ptr = line;
-    while (fgets(line, 128, fp) != NULL) {
+    while (fgets(line, BUF_LEN, fp) != NULL) {
         if (line[0] != 'p') continue;
         else {
             c2dLiteral tmp;
@@ -394,7 +396,7 @@ SatState* sat_state_new(const char* file_name) {
             state->asserted_clause = NULL;
             for(c2dSize i = 1; i <= state->m; ++i) {
                 line = ptr; // restore start position of buffer
-                fgets(line, 128, fp);
+                fgets(line, BUF_LEN, fp);
                 c2dSize n_literals = 0;
                 while (1) {
                     line = read_next_number(line, &tmp);
@@ -422,7 +424,7 @@ SatState* sat_state_new(const char* file_name) {
     free(ptr);
     fclose(fp);
     state->current_level = 1;
-   // print_state(state);
+    //print_state(state);
     return state;
 }
 
@@ -456,7 +458,6 @@ void sat_state_free(SatState* sat_state) {
         literals = literals->prev;
         LitNode_delete(del);
     }
-    Clause_delete(sat_state->asserted_clause);
 }
 
 /******************************************************************************
@@ -488,14 +489,17 @@ void sat_state_free(SatState* sat_state) {
  * Yet, the first decided literal must have 2 as its decision level
  ******************************************************************************/
 
-void backtrack(Lit* cur, Lit** marks, c2dSize highest_level) {
+void backtrack(Lit* cur, Lit** marks, c2dSize highest_level, 
+    BOOLEAN* visited, c2dSize n) {
+    if (visited[cur->index + n]) return;
+    visited[cur->index + n] = 1;
     if (cur->decision_level < highest_level ||
         (cur->decision_level == highest_level && cur->implied_by == NULL)) {
         c2dSize id = sat_literal_var(cur)->index - 1;
         marks[id] = cur;
     } else {
         for(c2dSize i = 0; i < cur->n_implied_by; ++i)
-            backtrack(cur->implied_by[i], marks, highest_level);
+            backtrack(cur->implied_by[i], marks, highest_level, visited, n);
     }
 }
 
@@ -508,11 +512,14 @@ Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
     }
     if (highest_level == 1) return NULL;
     Lit** marks = malloc(sizeof(Lit*) * sat_state->n);
+    BOOLEAN* visited = malloc(sizeof(BOOLEAN) * (sat_state->n * 2 + 1));
     for(c2dSize i = 0; i < sat_state->n; ++i)
         marks[i] = NULL;
+    for(c2dSize i = 0; i <= sat_state->n * 2; ++i)
+        visited[i] = 0;
     for(c2dSize i = 0; i < clause->n_literals; ++i)
         backtrack(sat_index2literal(-clause->literals[i]->index, sat_state),
-                  marks, highest_level);
+                  marks, highest_level, visited, sat_state->n);
     c2dSize cnt = 0;
     for(c2dSize i = 0; i < sat_state->n; ++i)
         if (marks[i] != NULL)
@@ -526,20 +533,20 @@ Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
             if (marks[i]->decision_level != highest_level && marks[i]->decision_level > assertion_level)
                 assertion_level = marks[i]->decision_level;
             ++cnt;
-            if (marks[i]->implied_by == NULL && 
-                marks[i]->decision_level < highest_level &&
+            if (marks[i]->decision_level < highest_level &&
                 marks[i]->decision_level > assertion_level)
                 assertion_level = marks[i]->decision_level;
         }
     Clause* res = Clause_new(sat_clause_count(sat_state) + 1, lits, cnt);
     res->assertion_level = cnt == 1 ? 1 : assertion_level;
+    free(marks);
+    free(visited);
     return res;
 }
 
 //applies unit resolution to the cnf of sat state
 //returns 1 if unit resolution succeeds, 0 if it finds a contradiction
 BOOLEAN sat_unit_resolution(SatState* sat_state) {
-
     c2dSize n_unset_lit = 0;
     c2dSize n_false_lit = 0;
     Lit * unset_lit = NULL;
@@ -585,7 +592,7 @@ BOOLEAN sat_unit_resolution(SatState* sat_state) {
                 sat_state->implied_literals->next = lnode;
             }
             sat_state->implied_literals = lnode;
-            printf("literal %ld implied\n", unset_lit->index);
+            //printf("literal %ld implied\n", unset_lit->index);
             // restart iteration
             i = 0;
         } else if (n_false_lit == sat_clause_size(clause) && !sat_subsumed_clause(clause)) {
@@ -597,8 +604,10 @@ BOOLEAN sat_unit_resolution(SatState* sat_state) {
     }
     
     if (conflict == 1) {
+        /*for(c2dSize i = 0; i < conflict_clause->n_literals; ++i)
+            printf("%ld ", conflict_clause->literals[i]->index);
+        printf("\n");*/
         sat_state->asserted_clause = construct_asserted_clause(conflict_clause, sat_state);
-        Clause_delete(conflict_clause);
         return 0;
     }
     
@@ -629,7 +638,7 @@ void sat_undo_unit_resolution(SatState* sat_state) {
             LitNode* prev = cur->prev;
             if (prev != NULL) prev->next = next;
             if (next != NULL) next->prev = prev;
-            sat_state->implied_literals = prev;
+            if (next == NULL) sat_state->implied_literals = prev;
             LitNode_delete(cur);
             cur = prev;
         } else {
