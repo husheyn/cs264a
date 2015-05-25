@@ -1,0 +1,13 @@
+c this is a comment line
+c each comment line starts with lowercase c
+ccc one more comment line, then we will have the problem line
+p cnf 6 7
+1 2
+2 3
+-1 -4 5
+-1 4 6
+-1 -5 6
+-1 4 -6
+-1 -5 -6
+cc a comment line is possible after all clauses are defined
+% even a redundant stuff which is not a comment line is possible
