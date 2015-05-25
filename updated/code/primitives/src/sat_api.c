@@ -528,7 +528,7 @@ BOOLEAN sat_unit_resolution(SatState* sat_state) {
                 Lit ** lits = sat_clause_literals(clause);
                 for (c2dSize i = 0; i < sat_clause_size(clause); i ++) {
                     if (lits[i] == unset_lit) continue;
-                    implied_by_array[temp++] = lits[i];
+                    implied_by_array[temp++] = sat_index2literal(-sat_literal_index(lits[i]),sat_state);
                 }
                 unset_lit->implied_by = implied_by_array;
                 unset_lit->n_implied_by = sat_clause_size(clause)-1;
@@ -552,7 +552,7 @@ BOOLEAN sat_unit_resolution(SatState* sat_state) {
         Lit ** lits = sat_clause_literals(conflict_clause);
         for (c2dSize i = 0; i < sat_clause_size(conflict_clause); i ++) {
             Lit * comp_lit = sat_index2literal(-sat_literal_index(lits[i]), sat_state);
-            printf("%ld\n", comp_lit->index);
+            printf("Number of implied clause: %ld\n", comp_lit->n_implied_by);
         }
         return 0;
     }
