@@ -27,7 +27,7 @@ Var* Var_new(c2dSize id) {
 
 void Var_delete(Var* var) {
     if (var) {
-        free(var->clauses);
+        if (var->clauses) free(var->clauses);
         free(var);
     }
 }
@@ -108,6 +108,20 @@ LitNode* LitNode_new(Lit* literal, LitNode* prev, LitNode* next) {
 
 void LitNode_delete(LitNode* node) {
     if (node) {
+        free(node);
+    }
+}
+
+DAGNode* DAGNode_new(Lit* literal, DAGNode** from) {
+    DAGNode* node = malloc(sizeof(DAGNode));
+    node->literal = literal;
+    node->from = from;
+    return node;
+}
+
+void DAGNode_delete(DAGNode* node) {
+    if (node) {
+        if (node->from) free(node->from);
         free(node);
     }
 }
@@ -210,7 +224,7 @@ Clause* Clause_new(c2dSize id, Lit** literals, c2dSize n_literals) {
 
 void Clause_delete(Clause* clause) {
     if (clause) {
-        free(clause->literals);
+        if (clause->literals) free(clause->literals);
         free(clause);
     }
 }
