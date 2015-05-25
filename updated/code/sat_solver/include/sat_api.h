@@ -77,6 +77,8 @@ void Var_delete(Var* var);
 struct literal {
     c2dLiteral index;
     c2dSize decision_level;
+    Lit** implied_by;
+    c2dSize n_implied_by;
     Var* var;
 };
 
@@ -92,15 +94,6 @@ struct LitNode {
 
 LitNode* LitNode_new(Lit* literal, LitNode* prev, LitNode* next);
 void LitNode_delete(LitNode* node);
-
-typedef struct DAGNode DAGNode;
-struct DAGNode {
-    Lit* literal;
-    DAGNode** from;
-};
-
-DAGNode* DGANode_new(Lit* literal, DAGNode** from);
-void DAGNode_delete(DAGNode* node);
 
 /******************************************************************************
  * Clauses: 
