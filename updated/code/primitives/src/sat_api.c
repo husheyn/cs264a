@@ -490,6 +490,7 @@ void backtrack(Lit* cur, Lit** marks, c2dSize highest_level) {
 
 Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
     c2dSize highest_level = 0;
+    c2dSize lowest_level = sat_state->current_level;
     for(c2dSize i = 0; i < clause->n_literals; ++i)
         if (clause->literals[i]->decision_level > highest_level)
             highest_level = clause->literals[i]->decision_level;
@@ -508,9 +509,12 @@ Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
     for(c2dSize i = 0; i < sat_state->n; ++i)
         if (marks[i] != NULL) {
             lits[cnt] = sat_index2literal(-marks[i]->index, sat_state);
+            lowest_level = lowest_level > marks[i]->decision_level ?
+                marks[i]->decision_level : lowest_level;
             ++cnt;
         }
     Clause* res = Clause_new(sat_clause_count(sat_state) + 1, lits, cnt);
+    res->assertion_level = lowest_level;
     return res;
 }
 
@@ -572,12 +576,17 @@ BOOLEAN sat_unit_resolution(SatState* sat_state) {
     }
     
     if (conflict == 1) {
+        
         Lit ** lits = sat_clause_literals(conflict_clause);
+        Lit ** comp_lits = malloc(sizeof(Lit*) * sat_clause_size(conflict_clause));
         for (c2dSize i = 0; i < sat_clause_size(conflict_clause); i ++) {
             Lit * comp_lit = sat_index2literal(-sat_literal_index(lits[i]), sat_state);
-            printf("Number of implied clause: %ld\n", comp_lit->n_implied_by);
+            comp_lits[i] = comp_lit;
         }
+        conflict_clause = Clause_new(0, comp_lits, sat_clause_size(conflict_clause));
+        // The conflict clause should check the complementary literals.
         sat_state->asserted_clause = construct_asserted_clause(conflict_clause, sat_state);
+        Clause_delete(conflict_clause);
         return 0;
     }
     
