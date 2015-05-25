@@ -263,7 +263,7 @@ BOOLEAN sat_subsumed_clause(const Clause* clause) {
 
 //returns the number of clauses in the cnf of sat state
 c2dSize sat_clause_count(const SatState* sat_state) {
-    return sat_state->m + sat_state->n_learned_clauses;
+    return sat_state->m;
 }
 
 //returns the number of learned clauses in a sat state (0 when the sat state is constructed)
@@ -298,7 +298,8 @@ Clause* sat_assert_clause(Clause* clause, SatState* sat_state) {
         sat_state->learned_clauses[sat_state->n_learned_clauses] = clause;
         ++sat_state->n_learned_clauses;
     }
-    clause->index = sat_clause_count(sat_state);
+    clause->index = sat_clause_count(sat_state) + 
+                    sat_learned_clause_count(sat_state);
     if (sat_unit_resolution(sat_state)) {
         sat_state->asserted_clause = NULL;
         return NULL;
@@ -537,7 +538,8 @@ Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
                 marks[i]->decision_level > assertion_level)
                 assertion_level = marks[i]->decision_level;
         }
-    Clause* res = Clause_new(sat_clause_count(sat_state) + 1, lits, cnt);
+    Clause* res = Clause_new(sat_clause_count(sat_state) + 
+        sat_learned_clause_count(sat_state) + 1, lits, cnt);
     res->assertion_level = cnt == 1 ? 1 : assertion_level;
     free(marks);
     free(visited);
@@ -553,7 +555,7 @@ BOOLEAN sat_unit_resolution(SatState* sat_state) {
     BOOLEAN conflict = 0;
     Clause * conflict_clause = NULL;
     
-    for (c2dSize i = 1; i <= sat_clause_count(sat_state); i ++) {
+    for (c2dSize i = 1; i <= sat_clause_count(sat_state) + sat_learned_clause_count(sat_state); i ++) {
         Clause * clause = sat_index2clause(i, sat_state);
         if (sat_subsumed_clause(clause)) continue;
         n_unset_lit = 0;
