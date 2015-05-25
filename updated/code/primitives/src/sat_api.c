@@ -89,11 +89,14 @@ Lit* Lit_new(c2dLiteral id) {
     Lit* literal = malloc(sizeof(Lit));
     literal->index = id;
     literal->decision_level = 0;
+    literal->implied_by = NULL;
+    literal->n_implied_by = 0;
     return literal;
 }
 
 void Lit_delete(Lit* lit) {
     if (lit) {
+        if (lit->implied_by) free(lit->implied_by);
         free(lit);
     }
 }
@@ -519,9 +522,69 @@ Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
 //returns 1 if unit resolution succeeds, 0 if it finds a contradiction
 BOOLEAN sat_unit_resolution(SatState* sat_state) {
 
-  // ... TO DO ...
-  
-  return 0; //dummy valued
+    c2dSize n_unset_lit = 0;
+    c2dSize n_false_lit = 0;
+    Lit * unset_lit = NULL;
+    BOOLEAN conflict = 0;
+    Clause * conflict_clause = NULL;
+    
+    for (c2dSize i = 1; i <= sat_clause_count(sat_state); i ++) {
+        Clause * clause = sat_index2clause(i, sat_state);
+        if (sat_subsumed_clause(clause)) continue;
+        n_unset_lit = 0;
+        n_false_lit = 0;
+        Lit ** lits = sat_clause_literals(clause);
+        for (c2dSize i = 0; i < sat_clause_size(clause); i ++) {
+            Lit * lit = lits[i];
+            Lit * comp_lit = sat_index2literal(-sat_literal_index(lit), sat_state);
+            if (sat_implied_literal(lit)) {
+                clause->is_subsumed = 1;
+                break;
+            } else if (sat_implied_literal(comp_lit)) {
+                n_false_lit ++;
+            } else {
+                n_unset_lit ++;
+                unset_lit = lit;
+            }
+        }
+        if (n_unset_lit == 1 && !sat_subsumed_clause(clause)) {
+            unset_lit->decision_level = sat_state->current_level;
+            if (sat_clause_size(clause) != 1) {
+                Lit ** implied_by_array = malloc(sizeof(Lit*) * (sat_clause_size(clause)-1));
+                c2dSize temp = 0;
+                Lit ** lits = sat_clause_literals(clause);
+                for (c2dSize i = 0; i < sat_clause_size(clause); i ++) {
+                    if (lits[i] == unset_lit) continue;
+                    implied_by_array[temp++] = sat_index2literal(-sat_literal_index(lits[i]),sat_state);
+                }
+                unset_lit->implied_by = implied_by_array;
+                unset_lit->n_implied_by = sat_clause_size(clause)-1;
+            }
+            LitNode * lnode = LitNode_new(unset_lit, sat_state->implied_literals, NULL);
+            if (sat_state->implied_literals != NULL) {
+                sat_state->implied_literals->next = lnode;
+            }
+            sat_state->implied_literals = lnode;
+            printf("literal %ld implied\n", unset_lit->index);
+            i = 0;
+        } else if (n_false_lit == sat_clause_size(clause) && !sat_subsumed_clause(clause)) {
+            conflict = 1;
+            conflict_clause = clause;
+            break;
+        }
+        
+    }
+    
+    if (conflict == 1) {
+        Lit ** lits = sat_clause_literals(conflict_clause);
+        for (c2dSize i = 0; i < sat_clause_size(conflict_clause); i ++) {
+            Lit * comp_lit = sat_index2literal(-sat_literal_index(lits[i]), sat_state);
+            printf("Number of implied clause: %ld\n", comp_lit->n_implied_by);
+        }
+        return 0;
+    }
+    
+    return 1;
 }
 
 //undoes sat_unit_resolution(), leading to un-instantiating variables that have been instantiated
@@ -532,6 +595,15 @@ void sat_undo_unit_resolution(SatState* sat_state) {
         Lit* lit = cur->literal;
         if (lit->decision_level == sat_state->current_level) {
             lit->decision_level = 0;
+            lit->n_implied_by = 0;
+            if (lit->implied_by) free(lit->implied_by);
+            lit->implied_by = NULL;
+            
+            // clear all the subsumed clause
+            Var * var = sat_literal_var(lit);
+            for (c2dSize i = 0; i < sat_var_occurences(var); i ++)
+                sat_clause_of_var(i, var)->is_subsumed = 0;
+            
             LitNode* next = cur->next;
             LitNode* prev = cur->prev;
             if (prev != NULL) prev->next = next;
@@ -542,11 +614,6 @@ void sat_undo_unit_resolution(SatState* sat_state) {
         } else {
             cur = cur->prev;
         }
-    }
-    // Reset all subsumed clause
-    for(c2dSize i = 1; i <= sat_clause_count(sat_state); ++i) {
-        Clause* clause = sat_index2clause(i, sat_state);
-        clause->is_subsumed = 0;
     }
 }
 
