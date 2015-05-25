@@ -78,6 +78,8 @@ struct literal {
     c2dLiteral index;
     c2dSize decision_level;
     Var* var;
+    Lit ** implied_by;
+    c2dSize n_implied_by;
 };
 
 Lit* Lit_new(c2dLiteral id);
