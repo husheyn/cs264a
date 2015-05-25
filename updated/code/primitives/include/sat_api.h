@@ -77,6 +77,8 @@ void Var_delete(Var* var);
 struct literal {
     c2dLiteral index;
     c2dSize decision_level;
+    Lit** implied_by;
+    c2dSize n_implied_by;
     Var* var;
 };
 

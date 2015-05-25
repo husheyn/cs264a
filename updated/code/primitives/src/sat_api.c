@@ -507,11 +507,7 @@ Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
     cnt = 0;
     for(c2dSize i = 0; i < sat_state->n; ++i)
         if (marks[i] != NULL) {
-            Var* var = sat_literal_var(marks[i]);
-            if (marks[i]->index > 0)
-                lits[cnt] = sat_neg_literal(var);
-            else
-                lits[cnt] = sat_pos_literal(var);
+            lits[cnt] = sat_index2literal(-marks[i]->index, sat_state);
             ++cnt;
         }
     Clause* res = Clause_new(sat_clause_count(sat_state) + 1, lits, cnt);
@@ -581,6 +577,7 @@ BOOLEAN sat_unit_resolution(SatState* sat_state) {
             Lit * comp_lit = sat_index2literal(-sat_literal_index(lits[i]), sat_state);
             printf("Number of implied clause: %ld\n", comp_lit->n_implied_by);
         }
+        sat_state->asserted_clause = construct_asserted_clause(conflict_clause, sat_state);
         return 0;
     }
     
@@ -600,6 +597,7 @@ void sat_undo_unit_resolution(SatState* sat_state) {
             lit->implied_by = NULL;
             
             // clear all the subsumed clause
+            // this is incorrect? - Sheng
             Var * var = sat_literal_var(lit);
             for (c2dSize i = 0; i < sat_var_occurences(var); i ++)
                 sat_clause_of_var(i, var)->is_subsumed = 0;
