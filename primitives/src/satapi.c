@@ -20,12 +20,16 @@ Lit* Lit_new(signed long id) {
     Lit* literal = malloc(sizeof(Lit));
     literal->index = id;
     literal->decision_level = 0;
+    literal->impled_by = NULL;
+    literal->num_implied_by = 0;
     return literal;
 }
 
 void Lit_delete(Lit* lit) {
-    if (lit)
+    if (lit) {
+        if (lit->impled_by) free(lit->impled_by);
         free(lit);
+    }
 }
 
 LitNode* LitNode_new(Lit* literal, LitNode* prev, LitNode* next) {
@@ -57,12 +61,13 @@ void Var_delete(Var* var) {
     }
 }
 
-Clause* Clause_new(unsigned long id, LitNode* literals) {
+Clause* Clause_new(unsigned long id, LitNode* literals, unsigned long num_lits) {
     Clause* clause = malloc(sizeof(Clause));
     clause->index = id;
     clause->literals = literals;
     clause->is_subsumed = 0;
     clause->assertion_level = 1;
+    clause->num_literals = num_lits;
     return clause;
 }
 
@@ -102,6 +107,7 @@ DAGNode* DAGNode_new(Lit* literal, DAGNode** from) {
 
 void DAGNode_delete(DAGNode* node) {
     if (node) {
+        if (node->from) free(node->from);
         free(node);
     }
 }
@@ -279,6 +285,7 @@ SatState* construct_sat_state(char* cnf_fname) {
                 LitNode* literals = NULL;
                 line = ptr; // restore start position of buffer
                 fgets(line, 128, fp);
+                int num_lits = 0;
                 while (1) {
                     line = read_next_number(line, &tmp);
                     if (tmp == 0) break;
@@ -291,8 +298,9 @@ SatState* construct_sat_state(char* cnf_fname) {
                     literals = LitNode_new(lit, t, NULL);
                     if (t != NULL)
                         t->next = literals;
+                    num_lits ++;
                 }
-                Clause* clause = Clause_new(i, literals);
+                Clause* clause = Clause_new(i, literals, num_lits);
                 state->CNF_clauses = ClauseNode_new(clause, tail, NULL);
                 if (tail != NULL)
                     tail->next = state->CNF_clauses;
@@ -377,9 +385,31 @@ BOOLEAN unit_resolution(SatState* sat_state) {
     unsigned long n_false_lit = 0;
     unsigned long n_total_lit = 0;
     int conflict = 0;
+    Clause * conflict_clause = NULL;
     Lit * unset_lit = NULL;
+    // Construct graph
+    DAGNode ** lit_GNode_map = malloc(sizeof(DAGNode*) * (2*sat_state->n));
+    for (int i = 0; i < 2*sat_state->n; i ++) lit_GNode_map[i] = DAGNode_new(NULL, NULL);
+    LitNode * decided_lits = sat_state->decided_literals;
+    while (decided_lits != NULL) {
+        lit_GNode_map[decided_lits->literal->index+sat_state->n]->literal = decided_lits->literal;
+        decided_lits = decided_lits->prev;
+    }
+    LitNode * implied_lits = sat_state->implied_literals;
+    while (implied_lits != NULL) {
+        lit_GNode_map[implied_lits->literal->index+sat_state->n]->literal = implied_lits->literal;
+        if (implied_lits->literal->impled_by != NULL) {
+            DAGNode ** dnode_array = malloc(sizeof(DAGNode*) * implied_lits->literal->num_implied_by);
+            for (unsigned long i = 0; i < implied_lits->literal->num_implied_by; i ++) {
+                dnode_array[i] = lit_GNode_map[implied_lits->literal->impled_by[i]->index+sat_state->n];
+            }
+            lit_GNode_map[implied_lits->literal->index+sat_state->n]->from = dnode_array;
+        }
+        implied_lits = implied_lits->prev;
+    }
     for (unsigned long i = 1; i <= sat_state->n_clauses; i ++) {
         Clause* clause = index2clausep(i, sat_state);
+        if (subsumed_clause(clause)) continue;
         n_unset_lit = 0;
         n_false_lit = 0;
         n_total_lit = 0;
@@ -397,7 +427,6 @@ BOOLEAN unit_resolution(SatState* sat_state) {
             }
             else if (set_literal(comp_lit)) {
                 // A FALSE has been found, continue
-                clause->is_subsumed = 1;
                 n_false_lit ++;
             } else {
                 // Lit has not been implied
@@ -412,6 +441,26 @@ BOOLEAN unit_resolution(SatState* sat_state) {
             // WARNING: if decision_level is set 1 as default, then there would be problem
             // in the next sentence. So Song suggest set default decision_level to 0
             unset_lit->decision_level = sat_state->current_level;
+            // Set implied_by && construct graph
+            if (clause->num_literals != 1) {
+                Lit ** implied_literals_array = malloc(sizeof(Lit *) * (clause->num_literals-1));
+                int temp = 0;
+                LitNode * lits = clause->literals;
+                DAGNode ** dnode_array = malloc(sizeof(DAGNode*) * (clause->num_literals-1));
+                while (lits != NULL) {
+                    if (lits->literal == unset_lit) {
+                        lits = lits->prev;
+                        continue;
+                    }
+                    implied_literals_array[temp] = lits->literal;
+                    dnode_array[temp] = lit_GNode_map[lits->literal->index+sat_state->n];
+                    lits = lits->prev;
+                    temp ++;
+                }
+                lit_GNode_map[unset_lit->index+sat_state->n]->from = dnode_array;
+                unset_lit->impled_by = implied_literals_array;
+                unset_lit->num_implied_by = clause->num_literals-1;
+            }
             LitNode * node = LitNode_new(unset_lit, sat_state->implied_literals, NULL);
             if (sat_state->implied_literals != NULL) {
                 sat_state->implied_literals->next = node;
@@ -424,19 +473,27 @@ BOOLEAN unit_resolution(SatState* sat_state) {
         if (lits == NULL && n_total_lit == n_false_lit) {
             // Unit resolution found conflict
             // Might need to save some variables here for finding assertion clause
+            conflict_clause = clause;
             conflict = 1;
             break;
         }
     }
     if (conflict) {
         Clause* asserted_clause = NULL;
-        // TODO...
+        LitNode * literals = conflict_clause->literals;
+        while (literals != NULL) {
+            DAGNode * dnode = lit_GNode_map[literals->literal->index+sat_state->n];
+            printf("%ld\n",dnode->literal->index);
+            literals = literals->prev;
+        }
         sat_state->asserted_clause = asserted_clause;
         //return add_asserting_clause(sat_state);
         printf("contradiction found\n");
+        for (unsigned long i = 0; i < 2*sat_state->n; i ++) DAGNode_delete(lit_GNode_map[i]);
         return 0;
     }
-    else return 1;
+    for (unsigned long i = 0; i < 2*sat_state->n; i ++) DAGNode_delete(lit_GNode_map[i]);
+    return 1;
 }
 
 
@@ -450,6 +507,9 @@ void undo_unit_resolution(SatState* sat_state) {
         Lit* lit = cur->literal;
         if (lit->decision_level == sat_state->current_level) {
             lit->decision_level = 0;
+            lit->num_implied_by = 0;
+            free(lit->impled_by);
+            lit->impled_by = NULL;
             LitNode* next = cur->next;
             LitNode* prev = cur->prev;
             if (prev != NULL) prev->next = next;
@@ -460,6 +520,12 @@ void undo_unit_resolution(SatState* sat_state) {
         } else {
             cur = cur->prev;
         }
+    }
+    // Reset all subsumed clause
+    // May not be efficient
+    for (unsigned long i = 1; i <= sat_state->n_clauses; i ++) {
+        Clause* clause = index2clausep(i, sat_state);
+        clause->is_subsumed = 0;
     }
 }
 

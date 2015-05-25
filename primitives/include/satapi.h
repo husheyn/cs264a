@@ -24,10 +24,14 @@ typedef char BOOLEAN;
  * --Index of a literal must be of type "signed long"
  ******************************************************************************/
 
-typedef struct {
+typedef struct Lit Lit;
+
+struct Lit {
     signed long index;
     unsigned long decision_level;
-} Lit;
+    Lit ** impled_by;
+    unsigned long num_implied_by;
+};
 
 Lit* Lit_new(signed long id);
 void Lit_delete(Lit* lit);
@@ -83,9 +87,10 @@ typedef struct {
     LitNode* literals;
     BOOLEAN is_subsumed;
     unsigned long assertion_level;
+    unsigned long num_literals;
 } Clause;
 
-Clause* Clause_new(unsigned long id, LitNode* literals);
+Clause* Clause_new(unsigned long id, LitNode* literals, unsigned long num_lits);
 // delete the clause and the literal list inside it
 void Clause_delete(Clause* clause);
 
