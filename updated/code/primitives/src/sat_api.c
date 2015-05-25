@@ -563,6 +563,11 @@ void sat_undo_unit_resolution(SatState* sat_state) {
             cur = cur->prev;
         }
     }
+    // Reset all subsumed clause
+    for(c2dSize i = 1; i <= sat_clause_count(sat_state); ++i) {
+        Clause* clause = sat_index2clause(i, sat_state);
+        clause->is_subsumed = 0;
+    }
 }
 
 //returns 1 if the decision level of the sat state equals to the assertion level of clause,
