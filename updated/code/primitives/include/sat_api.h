@@ -109,7 +109,7 @@ struct clause {
     c2dSize index;
     Lit** literals;
     c2dSize n_literals;
-    BOOLEAN is_subsumed;
+    c2dSize subsumed_level;
     c2dSize assertion_level;
     BOOLEAN mark; //THIS FIELD MUST STAY AS IS
 };
