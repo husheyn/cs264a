@@ -157,7 +157,7 @@ Clause* sat_decide_literal(Lit* lit, SatState* sat_state) {
     if (sat_state->decided_literals != NULL)
         sat_state->decided_literals->next = node;
     sat_state->decided_literals = node;
-    printf("literal %ld decided\n",node->literal->index);
+    printf("literal %ld decided at level %ld\n",node->literal->index, sat_state->current_level);
     sat_unit_resolution(sat_state);
     return sat_state->asserted_clause;
 }
@@ -169,9 +169,18 @@ Clause* sat_decide_literal(Lit* lit, SatState* sat_state) {
 void sat_undo_decide_literal(SatState* sat_state) {
     LitNode* cur = sat_state->decided_literals;
     sat_state->decided_literals = cur->prev;
+    
+    // clear all the subsumed clause
+    // this is incorrect? - Sheng
+    Var * var = sat_literal_var(cur->literal);
+    for (c2dSize i = 0; i < sat_var_occurences(var); i ++)
+        sat_clause_of_var(i, var)->is_subsumed = 0;
+    
+    cur->literal->decision_level = 0;
     if (sat_state->decided_literals != NULL)
         sat_state->decided_literals->next = NULL;
     LitNode_delete(cur);
+    printf("literal %ld undecided at level %ld\n",cur->literal->index, sat_state->current_level);
     sat_undo_unit_resolution(sat_state);
     --sat_state->current_level;
 }
@@ -490,7 +499,7 @@ void backtrack(Lit* cur, Lit** marks, c2dSize highest_level) {
 
 Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
     c2dSize highest_level = 0;
-    c2dSize lowest_level = sat_state->current_level;
+    c2dSize assertion_level = 0;
     for(c2dSize i = 0; i < clause->n_literals; ++i)
         if (clause->literals[i]->decision_level > highest_level)
             highest_level = clause->literals[i]->decision_level;
@@ -509,12 +518,12 @@ Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
     for(c2dSize i = 0; i < sat_state->n; ++i)
         if (marks[i] != NULL) {
             lits[cnt] = sat_index2literal(-marks[i]->index, sat_state);
-            lowest_level = lowest_level > marks[i]->decision_level ?
-                marks[i]->decision_level : lowest_level;
+            if (marks[i]->decision_level != highest_level && marks[i]->decision_level > assertion_level)
+                assertion_level = marks[i]->decision_level;
             ++cnt;
         }
     Clause* res = Clause_new(sat_clause_count(sat_state) + 1, lits, cnt);
-    res->assertion_level = lowest_level;
+    res->assertion_level = cnt == 1 ? 1 : assertion_level;
     return res;
 }
 
@@ -534,8 +543,8 @@ BOOLEAN sat_unit_resolution(SatState* sat_state) {
         n_unset_lit = 0;
         n_false_lit = 0;
         Lit ** lits = sat_clause_literals(clause);
-        for (c2dSize i = 0; i < sat_clause_size(clause); i ++) {
-            Lit * lit = lits[i];
+        for (c2dSize j = 0; j < sat_clause_size(clause); j ++) {
+            Lit * lit = lits[j];
             Lit * comp_lit = sat_index2literal(-sat_literal_index(lit), sat_state);
             if (sat_implied_literal(lit)) {
                 clause->is_subsumed = 1;
