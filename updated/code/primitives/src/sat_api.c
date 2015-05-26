@@ -174,13 +174,15 @@ void sat_undo_decide_literal(SatState* sat_state) {
     LitNode* cur = sat_state->decided_literals;
     sat_state->decided_literals = cur->prev;
    
-    /*
     // clear all the subsumed clause
     // this is incorrect? - Sheng
     Var * var = sat_literal_var(cur->literal);
-    for (c2dSize i = 0; i < sat_var_occurences(var); i ++)
-        sat_clause_of_var(i, var)->is_subsumed = 0;
-    */
+    for (c2dSize i = 0; i < sat_var_occurences(var); i ++) {
+        Clause* clause = sat_clause_of_var(i, var);
+        if (clause->subsumed_level == sat_state->current_level)
+            clause->subsumed_level = 0;
+    }
+    
     cur->literal->decision_level = 0;
     if (sat_state->decided_literals != NULL)
         sat_state->decided_literals->next = NULL;
@@ -222,6 +224,7 @@ Clause* Clause_new(c2dSize id, Lit** literals, c2dSize n_literals) {
     }
     clause->subsumed_level = 0;
     clause->assertion_level = 1;
+    clause->mark = 0;
     return clause;
 }
 
@@ -496,7 +499,7 @@ void backtrack(Lit* cur, Lit** marks, c2dSize highest_level,
     visited[cur->index + n] = 1;
     if (cur->decision_level < highest_level ||
         (cur->decision_level == highest_level && cur->implied_by == NULL)) {
-        c2dSize id = sat_literal_var(cur)->index - 1;
+        c2dSize id = cur->index + n;
         marks[id] = cur;
     } else {
         for(c2dSize i = 0; i < cur->n_implied_by; ++i)
@@ -505,16 +508,16 @@ void backtrack(Lit* cur, Lit** marks, c2dSize highest_level,
 }
 
 Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
-    c2dSize highest_level = 0;
-    for(c2dSize i = 0; i < clause->n_literals; ++i) {
+    c2dSize highest_level = sat_state->current_level;
+    /*for(c2dSize i = 0; i < clause->n_literals; ++i) {
         Lit* lit = sat_index2literal(-clause->literals[i]->index, sat_state);
         if (lit->decision_level > highest_level)
             highest_level = lit->decision_level;
-    }
+    }*/
     if (highest_level == 1) return NULL;
-    Lit** marks = malloc(sizeof(Lit*) * sat_state->n);
+    Lit** marks = malloc(sizeof(Lit*) * (sat_state->n * 2 + 1));
     BOOLEAN* visited = malloc(sizeof(BOOLEAN) * (sat_state->n * 2 + 1));
-    for(c2dSize i = 0; i < sat_state->n; ++i)
+    for(c2dSize i = 0; i <= sat_state->n * 2; ++i)
         marks[i] = NULL;
     for(c2dSize i = 0; i <= sat_state->n * 2; ++i)
         visited[i] = 0;
@@ -522,17 +525,15 @@ Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
         backtrack(sat_index2literal(-clause->literals[i]->index, sat_state),
                   marks, highest_level, visited, sat_state->n);
     c2dSize cnt = 0;
-    for(c2dSize i = 0; i < sat_state->n; ++i)
+    for(c2dSize i = 0; i <= sat_state->n * 2; ++i)
         if (marks[i] != NULL)
             ++cnt;
     Lit** lits = malloc(sizeof(Lit*) * cnt);
     cnt = 0;
     c2dSize assertion_level = 1;
-    for(c2dSize i = 0; i < sat_state->n; ++i)
+    for(c2dSize i = 0; i <= sat_state->n * 2; ++i)
         if (marks[i] != NULL) {
             lits[cnt] = sat_index2literal(-marks[i]->index, sat_state);
-            if (marks[i]->decision_level != highest_level && marks[i]->decision_level > assertion_level)
-                assertion_level = marks[i]->decision_level;
             ++cnt;
             if (marks[i]->decision_level < highest_level &&
                 marks[i]->decision_level > assertion_level)
