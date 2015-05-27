@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <time.h>
 
 /******************************************************************************
  * sat_api.h shows the function prototypes you should implement to create libsat.a
