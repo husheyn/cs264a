@@ -91,6 +91,9 @@ Lit* Lit_new(c2dLiteral id) {
     literal->decision_level = 0;
     literal->implied_by = NULL;
     literal->n_implied_by = 0;
+    literal->clauses = NULL;
+    literal->n_clauses = 0;
+    literal->clauses_buf_len = 0;
     return literal;
 }
 
@@ -203,6 +206,7 @@ Clause* Clause_new(c2dSize id, Lit** literals, c2dSize n_literals) {
     clause->n_literals = n_literals;
     for(c2dSize i = 0; i < n_literals; ++i) {
         Var* var = sat_literal_var(literals[i]);
+        // var
         if (var->clauses_buf_len == 0) {
             var->clauses_buf_len = 1;
             var->n_clauses = 1;
@@ -220,6 +224,27 @@ Clause* Clause_new(c2dSize id, Lit** literals, c2dSize n_literals) {
         } else {
             var->clauses[var->n_clauses] = clause;
             ++var->n_clauses;
+        }
+
+        // literal
+        Lit* lit = literals[i];
+        if (lit->clauses_buf_len == 0) {
+            lit->clauses_buf_len = 1;
+            lit->n_clauses = 1;
+            lit->clauses = malloc(sizeof(Clause*) * lit->clauses_buf_len);
+            lit->clauses[0] = clause;
+        } else if (lit->n_clauses == lit->clauses_buf_len) {
+            lit->clauses_buf_len *= 2;
+            Clause** tmp = malloc(sizeof(Clause*) * lit->clauses_buf_len);
+            for(c2dSize i = 0; i < lit->n_clauses; ++i)
+                tmp[i] = lit->clauses[i];
+            tmp[lit->n_clauses] = clause;
+            ++lit->n_clauses;
+            free(lit->clauses);
+            lit->clauses = tmp;
+        } else {
+            lit->clauses[lit->n_clauses] = clause;
+            ++lit->n_clauses;
         }
     }
     clause->subsumed_level = 0;

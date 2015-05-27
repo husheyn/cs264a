@@ -82,6 +82,9 @@ struct literal {
     c2dSize decision_level;
     Lit** implied_by;
     c2dSize n_implied_by;
+    Clause** clauses;
+    c2dSize n_clauses;
+    c2dSize clauses_buf_len;
     Var* var;
 };
 
