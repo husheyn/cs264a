@@ -1,4 +1,5 @@
 #include "sat_api.h"
+#include "c2d.h"
 
 /******************************************************************************
  * We explain here the functions you need to implement
@@ -550,6 +551,7 @@ Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
 //applies unit resolution to the cnf of sat state
 //returns 1 if unit resolution succeeds, 0 if it finds a contradiction
 BOOLEAN sat_unit_resolution(SatState* sat_state) {
+    clock_t t = clock();
     c2dSize n_unset_lit = 0;
     c2dSize n_false_lit = 0;
     Lit * unset_lit = NULL;
@@ -605,12 +607,16 @@ BOOLEAN sat_unit_resolution(SatState* sat_state) {
         }
         
     }
-    
+    unit_resolution_timer += clock() - t;
+    //printf("unit:%ld\n",unit_resolution_timer);
     if (conflict == 1) {
         /*for(c2dSize i = 0; i < conflict_clause->n_literals; ++i)
             printf("%ld ", conflict_clause->literals[i]->index);
         printf("\n");*/
+        t = clock();
         sat_state->asserted_clause = construct_asserted_clause(conflict_clause, sat_state);
+        backtrack_timer += clock() - t;
+        //printf("backtrack:%ld\n",backtrack_timer);
         return 0;
     }
     
