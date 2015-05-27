@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <assert.h>
 
 /******************************************************************************
@@ -37,6 +38,9 @@ typedef char BOOLEAN; //signed
 typedef unsigned long c2dSize;  //for variables, clauses, and various things
 typedef signed long c2dLiteral; //for literals
 typedef double c2dWmc;          //for (weighted) model count
+
+extern clock_t unit_resolution_timer;
+extern clock_t backtrack_timer;
 
 
 #define BUF_LEN 32768
