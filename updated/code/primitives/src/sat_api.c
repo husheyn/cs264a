@@ -572,15 +572,76 @@ Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
     return res;
 }
 
+Clause* unit_resolution_helper(Lit* cur, SatState* sat_state) {
+    c2dSize n_unset_lit = 0;
+    c2dSize n_false_lit = 0;
+    Lit * unset_lit = NULL;
+    Clause * conflict_clause = NULL;
+    for(c2dSize i = 0; i < cur->n_clauses; ++i) {
+        Clause* clause = cur->clauses[i];
+        if (sat_subsumed_clause(clause)) continue;
+        n_unset_lit = 0;
+        n_false_lit = 0;
+        Lit ** lits = sat_clause_literals(clause);
+        for (c2dSize j = 0; j < sat_clause_size(clause); j ++) {
+            Lit * lit = lits[j];
+            Lit * comp_lit = sat_index2literal(-sat_literal_index(lit), sat_state);
+            if (sat_implied_literal(lit)) {
+                clause->subsumed_level = sat_state->current_level;
+                break;
+            } else if (sat_implied_literal(comp_lit)) {
+                n_false_lit ++;
+            } else {
+                n_unset_lit ++;
+                unset_lit = lit;
+            }
+        }
+        if (n_unset_lit == 1 && !sat_subsumed_clause(clause)) {
+            // set implied literal
+            unset_lit->decision_level = sat_state->current_level;
+            // if not unit clause
+            if (sat_clause_size(clause) != 1) {
+                Lit ** implied_by_array = malloc(sizeof(Lit*) * (sat_clause_size(clause)-1));
+                c2dSize temp = 0;
+                Lit ** lits = sat_clause_literals(clause);
+                for (c2dSize i = 0; i < sat_clause_size(clause); i ++) {
+                    if (lits[i] == unset_lit) continue;
+                    implied_by_array[temp++] = sat_index2literal(-sat_literal_index(lits[i]),sat_state);
+                }
+                unset_lit->implied_by = implied_by_array;
+                unset_lit->n_implied_by = sat_clause_size(clause)-1;
+            }
+            LitNode * lnode = LitNode_new(unset_lit, sat_state->implied_literals, NULL);
+            if (sat_state->implied_literals != NULL) {
+                sat_state->implied_literals->next = lnode;
+            }
+            sat_state->implied_literals = lnode;
+            //printf("literal %ld implied\n", unset_lit->index);
+            // restart iteration
+            for(c2dSize j = 0; j < unset_lit->n_clauses; ++j)
+                unset_lit->clauses[j]->subsumed_level = 
+                    sat_state->current_level;
+            conflict_clause = unit_resolution_helper(
+                sat_index2literal(-sat_literal_index(unset_lit), sat_state),
+                sat_state);
+            if (conflict_clause != NULL) return conflict_clause;
+        } else if (n_false_lit == sat_clause_size(clause) && !sat_subsumed_clause(clause)) {
+            conflict_clause = clause;
+            return conflict_clause;
+        }
+    }
+    return NULL;
+}
+
 //applies unit resolution to the cnf of sat state
 //returns 1 if unit resolution succeeds, 0 if it finds a contradiction
 BOOLEAN sat_unit_resolution(SatState* sat_state) {
     clock_t t = clock();
+    Clause * conflict_clause = NULL;
+    /*BOOLEAN conflict = 0;
     c2dSize n_unset_lit = 0;
     c2dSize n_false_lit = 0;
     Lit * unset_lit = NULL;
-    BOOLEAN conflict = 0;
-    Clause * conflict_clause = NULL;
     
     for (c2dSize i = 1; i <= sat_clause_count(sat_state) + sat_learned_clause_count(sat_state); i ++) {
         Clause * clause = sat_index2clause(i, sat_state);
@@ -632,16 +693,27 @@ BOOLEAN sat_unit_resolution(SatState* sat_state) {
         
     }
     //unit_resolution_timer += clock() - t;
-    //printf("unit:%ld\n",unit_resolution_timer);
-    if (conflict == 1) {
+    //printf("unit:%ld\n",unit_resolution_timer);*/
+    for(c2dSize i = 0; i < sat_var_count(sat_state); ++i) {
+        conflict_clause = unit_resolution_helper(sat_state->pos_literals[i],
+                    sat_state);
+        if (conflict_clause != NULL) {
         /*for(c2dSize i = 0; i < conflict_clause->n_literals; ++i)
             printf("%ld ", conflict_clause->literals[i]->index);
         printf("\n");*/
-        t = clock();
-        sat_state->asserted_clause = construct_asserted_clause(conflict_clause, sat_state);
+            t = clock();
+            sat_state->asserted_clause = construct_asserted_clause(conflict_clause, sat_state);
         //backtrack_timer += clock() - t;
         //printf("backtrack:%ld\n",backtrack_timer);
-        return 0;
+            return 0;
+        }
+        conflict_clause = unit_resolution_helper(sat_state->neg_literals[i],
+                    sat_state);
+        if (conflict_clause != NULL) {
+            t = clock();
+            sat_state->asserted_clause = construct_asserted_clause(conflict_clause, sat_state);
+            return 0;
+        }
     }
     
     return 1;
