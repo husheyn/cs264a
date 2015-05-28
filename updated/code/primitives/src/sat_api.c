@@ -171,7 +171,7 @@ Clause* sat_decide_literal(Lit* lit, SatState* sat_state) {
     for(c2dSize i = 0; i < lit->n_clauses; ++i)
         if (lit->clauses[i]->subsumed_level == 0)
             lit->clauses[i]->subsumed_level = sat_state->current_level;
-    modify_n_false(lit, sat_state, 1);
+    //modify_n_false(lit, sat_state, 1);
 
     //printf("literal %ld decided at level %ld\n",node->literal->index, sat_state->current_level);
     if (sat_unit_resolution(sat_state)) {
@@ -197,7 +197,7 @@ void sat_undo_decide_literal(SatState* sat_state) {
         if (clause->subsumed_level == sat_state->current_level)
             clause->subsumed_level = 0;
     }
-    modify_n_false(cur->literal, sat_state, -1);
+    //modify_n_false(cur->literal, sat_state, -1);
     
     cur->literal->decision_level = 0;
     if (sat_state->decided_literals != NULL)
@@ -237,7 +237,7 @@ void imply_literal(Lit* unset_lit, Clause* clause, SatState* sat_state) {
         if (unset_lit->clauses[i]->subsumed_level == 0)
             unset_lit->clauses[i]->subsumed_level = 
                 sat_state->current_level;
-    modify_n_false(unset_lit, sat_state, 1);
+    //modify_n_false(unset_lit, sat_state, 1);
 } 
 
 
@@ -297,6 +297,13 @@ Clause* Clause_new(c2dSize id, Lit** literals, c2dSize n_literals) {
     clause->assertion_level = 1;
     clause->mark = 0;
     clause->n_false = 0;
+    if (n_literals > 1) {
+        clause->watch_lit1 = literals[0];
+        clause->watch_lit2 = literals[1];
+    } else {
+        clause->watch_lit1 = NULL;
+        clause->watch_lit2 = NULL;
+    }
     for(c2dSize i = 0; i < n_literals; i++) {
         Lit* lit = literals[i];
         Lit* comp_lit;
@@ -629,14 +636,49 @@ Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
     return res;
 }
 
+Clause* unit_find_watches(Clause * clause, c2dSize index, SatState * sat_state) {
+    Lit ** literals = clause->literals;
+    c2dSize i = 0;
+    for ( ; i < clause->n_literals; i ++) {
+        if (!sat_implied_literal(sat_index2literal(-literals[i]->index, sat_state))
+            && literals[i] != (index == 1 ? clause->watch_lit2 : clause->watch_lit1)) {
+            if (index == 1) clause->watch_lit1 = literals[i];
+            else clause->watch_lit2 = literals[i];
+            break;
+        }
+    }
+    if (i == clause->n_literals) {
+        Lit* other_watched = index == 1 ? clause->watch_lit2 : clause->watch_lit1;
+        if (sat_implied_literal(other_watched)) {
+            clause->subsumed_level = sat_state->current_level;
+            return NULL;
+        } else if (sat_implied_literal(sat_index2literal(-other_watched->index, sat_state))) {
+            return clause;
+        } else {
+            clause->subsumed_level = sat_state->current_level;
+            imply_literal(other_watched, clause, sat_state);
+            return unit_resolution_helper(other_watched, sat_state);
+        }
+    }
+    return NULL;
+}
+
 Clause* unit_resolution_helper(Lit* cur, SatState* sat_state) {
-    c2dSize n_unset_lit = 0;
-    c2dSize n_false_lit = 0;
-    Lit * unset_lit = NULL;
+    //c2dSize n_unset_lit = 0;
+    //c2dSize n_false_lit = 0;
+    //Lit * unset_lit = NULL;
     Clause * conflict_clause = NULL;
+    cur = sat_index2literal(-cur->index, sat_state);
     for(c2dSize i = 0; i < cur->n_clauses; ++i) {
         Clause* clause = cur->clauses[i];
         if (sat_subsumed_clause(clause)) continue;
+        if (clause->watch_lit1 == cur) {
+            conflict_clause = unit_find_watches(clause, 1, sat_state);
+            if (conflict_clause != NULL) return conflict_clause;
+        } else if (clause->watch_lit2 == cur) {
+            conflict_clause = unit_find_watches(clause, 2, sat_state);
+            if (conflict_clause != NULL) return conflict_clause;
+        }
         /*n_unset_lit = 0;
         n_false_lit = 0;
         Lit ** lits = sat_clause_literals(clause);
@@ -654,7 +696,7 @@ Clause* unit_resolution_helper(Lit* cur, SatState* sat_state) {
             }
         }
         if (clause->n_false != n_false_lit)
-            printf("%ld %ld\n", n_false_lit, clause->n_false);*/
+            printf("%ld %ld\n", n_false_lit, clause->n_false);
         n_false_lit = clause->n_false;
         n_unset_lit = sat_clause_size(clause) - n_false_lit;
         if (n_unset_lit == 1 && !sat_subsumed_clause(clause)) {
@@ -677,7 +719,7 @@ Clause* unit_resolution_helper(Lit* cur, SatState* sat_state) {
         } else if (n_false_lit == sat_clause_size(clause) && !sat_subsumed_clause(clause)) {
             conflict_clause = clause;
             return conflict_clause;
-        }
+        }*/
     }
     return NULL;
 }
@@ -685,9 +727,55 @@ Clause* unit_resolution_helper(Lit* cur, SatState* sat_state) {
 //applies unit resolution to the cnf of sat state
 //returns 1 if unit resolution succeeds, 0 if it finds a contradiction
 BOOLEAN sat_unit_resolution(SatState* sat_state) {
-    clock_t t = clock();
+    //clock_t t = clock();
     Clause * conflict_clause = NULL;
-    BOOLEAN conflict = 0;
+    //BOOLEAN conflict = 0;
+    if (sat_state->asserted_clause != NULL) {
+        Clause * clause = sat_state->asserted_clause;
+        clause->watch_lit1 = NULL;
+        clause->watch_lit2 = NULL;
+        if (clause->n_literals == 1) {
+            clause->subsumed_level = sat_state->current_level;
+            imply_literal(clause->literals[0], clause, sat_state);
+            conflict_clause = unit_resolution_helper(clause->literals[0], sat_state);
+        } else {
+            Lit ** literals = clause->literals;
+            for (c2dSize i = 0; i < clause->n_literals; i ++) {
+                if (!sat_implied_literal(literals[i])
+                    && ! sat_implied_literal(sat_index2literal(-literals[i]->index, sat_state))) {
+                    if (clause->watch_lit1 == NULL) {
+                        clause->watch_lit1 = literals[i];
+                    } else if (clause->watch_lit2 == NULL) {
+                        clause->watch_lit2 = literals[i];
+                        break;
+                    }
+                    else break;
+                }
+            }
+            if (clause->watch_lit1 == NULL) conflict_clause = clause;
+            else if (clause->watch_lit2 == NULL) {
+                clause->subsumed_level = sat_state->current_level;
+                imply_literal(clause->watch_lit1, clause, sat_state);
+                conflict_clause = unit_resolution_helper(clause->watch_lit1, sat_state);
+            } else conflict_clause = NULL;
+        }
+        
+    } else if (sat_state->current_level == 1) {
+        for (c2dSize i = 1; i < sat_clause_count(sat_state); i ++) {
+            Clause * clause = sat_index2clause(i, sat_state);
+            if (clause->n_literals == 1) {
+                clause->subsumed_level = sat_state->current_level;
+                imply_literal(clause->literals[0], clause, sat_state);
+                conflict_clause = unit_resolution_helper(clause->literals[0], sat_state);
+                if (conflict_clause != NULL) {
+                    break;
+                }
+            }
+        }
+    } else {
+        conflict_clause = unit_resolution_helper(sat_state->decided_literals->literal, sat_state);
+    }
+    /*
     c2dSize n_unset_lit = 0;
     c2dSize n_false_lit = 0;
     Lit * unset_lit = NULL;
@@ -727,13 +815,11 @@ BOOLEAN sat_unit_resolution(SatState* sat_state) {
         }
         
     }
+     */
     //unit_resolution_timer += clock() - t;
     //printf("unit:%ld\n",unit_resolution_timer);
-    if (conflict == 1) {
-    /*for(c2dSize i = 0; i < conflict_clause->n_literals; ++i)
-        printf("%ld ", conflict_clause->literals[i]->index);
-    printf("\n");*/
-        t = clock();
+    if (conflict_clause != NULL) {
+        //t = clock();
         sat_state->asserted_clause = construct_asserted_clause(conflict_clause, sat_state);
     //backtrack_timer += clock() - t;
     //printf("backtrack:%ld\n",backtrack_timer);
@@ -761,7 +847,7 @@ void sat_undo_unit_resolution(SatState* sat_state) {
                 if (clause->subsumed_level == sat_state->current_level)
                     clause->subsumed_level = 0;
             }
-            modify_n_false(lit, sat_state, -1);
+            //modify_n_false(lit, sat_state, -1);
             
             LitNode* next = cur->next;
             LitNode* prev = cur->prev;

@@ -119,6 +119,8 @@ struct clause {
     c2dSize subsumed_level;
     c2dSize assertion_level;
     c2dLiteral n_false;
+    Lit* watch_lit1;
+    Lit* watch_lit2;
     BOOLEAN mark; //THIS FIELD MUST STAY AS IS
 };
 
@@ -261,6 +263,8 @@ SatState* sat_state_new(const char* file_name);
 
 //frees the SatState
 void sat_state_free(SatState* sat_state);
+
+Clause * unit_resolution_helper(Lit * lit, SatState * sat_state);
 
 //applies unit resolution to the cnf of sat state
 //returns 1 if unit resolution succeeds, 0 if it finds a contradiction
