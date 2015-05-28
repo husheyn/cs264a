@@ -118,6 +118,7 @@ struct clause {
     c2dSize n_literals;
     c2dSize subsumed_level;
     c2dSize assertion_level;
+    c2dLiteral n_false;
     BOOLEAN mark; //THIS FIELD MUST STAY AS IS
 };
 
