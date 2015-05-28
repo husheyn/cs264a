@@ -534,11 +534,6 @@ void backtrack(Lit* cur, Lit** marks, c2dSize highest_level,
 
 Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
     c2dSize highest_level = sat_state->current_level;
-    /*for(c2dSize i = 0; i < clause->n_literals; ++i) {
-        Lit* lit = sat_index2literal(-clause->literals[i]->index, sat_state);
-        if (lit->decision_level > highest_level)
-            highest_level = lit->decision_level;
-    }*/
     if (highest_level == 1) return NULL;
     Lit** marks = malloc(sizeof(Lit*) * (sat_state->n * 2 + 1));
     BOOLEAN* visited = malloc(sizeof(BOOLEAN) * (sat_state->n * 2 + 1));
@@ -572,6 +567,37 @@ Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
     return res;
 }
 
+void imply_literal(Lit* unset_lit, Clause* clause, SatState* sat_state) {
+    // set implied literal
+    unset_lit->decision_level = sat_state->current_level;
+    // if not unit clause
+    if (sat_clause_size(clause) != 1) {
+        Lit** implied_by_array = malloc(sizeof(Lit*) * 
+                (sat_clause_size(clause) - 1));
+        c2dSize temp = 0;
+        Lit** lits = sat_clause_literals(clause);
+        for(c2dSize i = 0; i < sat_clause_size(clause); ++i) {
+            if (lits[i] == unset_lit) continue;
+            implied_by_array[temp++] = 
+                sat_index2literal(-sat_literal_index(lits[i]),sat_state);
+        }
+        unset_lit->implied_by = implied_by_array;
+        unset_lit->n_implied_by = sat_clause_size(clause) - 1;
+    }
+    LitNode * lnode = LitNode_new(unset_lit, sat_state->implied_literals, 
+        NULL);
+    if (sat_state->implied_literals != NULL) {
+        sat_state->implied_literals->next = lnode;
+    }
+    sat_state->implied_literals = lnode;
+    //printf("literal %ld implied\n", unset_lit->index);
+    // recursively search
+    for(c2dSize i = 0; i < unset_lit->n_clauses; ++i)
+        if (unset_lit->clauses[i]->subsumed_level == 0)
+            unset_lit->clauses[i]->subsumed_level = 
+                sat_state->current_level;
+} 
+
 Clause* unit_resolution_helper(Lit* cur, SatState* sat_state) {
     c2dSize n_unset_lit = 0;
     c2dSize n_false_lit = 0;
@@ -597,31 +623,7 @@ Clause* unit_resolution_helper(Lit* cur, SatState* sat_state) {
             }
         }
         if (n_unset_lit == 1 && !sat_subsumed_clause(clause)) {
-            // set implied literal
-            unset_lit->decision_level = sat_state->current_level;
-            // if not unit clause
-            if (sat_clause_size(clause) != 1) {
-                Lit ** implied_by_array = malloc(sizeof(Lit*) * (sat_clause_size(clause)-1));
-                c2dSize temp = 0;
-                Lit ** lits = sat_clause_literals(clause);
-                for (c2dSize i = 0; i < sat_clause_size(clause); i ++) {
-                    if (lits[i] == unset_lit) continue;
-                    implied_by_array[temp++] = sat_index2literal(-sat_literal_index(lits[i]),sat_state);
-                }
-                unset_lit->implied_by = implied_by_array;
-                unset_lit->n_implied_by = sat_clause_size(clause)-1;
-            }
-            LitNode * lnode = LitNode_new(unset_lit, sat_state->implied_literals, NULL);
-            if (sat_state->implied_literals != NULL) {
-                sat_state->implied_literals->next = lnode;
-            }
-            sat_state->implied_literals = lnode;
-            //printf("literal %ld implied\n", unset_lit->index);
-            // restart iteration
-            for(c2dSize j = 0; j < unset_lit->n_clauses; ++j)
-                if (unset_lit->clauses[j]->subsumed_level == 0)
-                    unset_lit->clauses[j]->subsumed_level = 
-                        sat_state->current_level;
+            imply_literal(unset_lit, clause, sat_state);
             conflict_clause = unit_resolution_helper(
                 sat_index2literal(-sat_literal_index(unset_lit), sat_state),
                 sat_state);
@@ -664,31 +666,7 @@ BOOLEAN sat_unit_resolution(SatState* sat_state) {
             }
         }
         if (n_unset_lit == 1 && !sat_subsumed_clause(clause)) {
-            // set implied literal
-            unset_lit->decision_level = sat_state->current_level;
-            // if not unit clause
-            if (sat_clause_size(clause) != 1) {
-                Lit ** implied_by_array = malloc(sizeof(Lit*) * (sat_clause_size(clause)-1));
-                c2dSize temp = 0;
-                Lit ** lits = sat_clause_literals(clause);
-                for (c2dSize i = 0; i < sat_clause_size(clause); i ++) {
-                    if (lits[i] == unset_lit) continue;
-                    implied_by_array[temp++] = sat_index2literal(-sat_literal_index(lits[i]),sat_state);
-                }
-                unset_lit->implied_by = implied_by_array;
-                unset_lit->n_implied_by = sat_clause_size(clause)-1;
-            }
-            LitNode * lnode = LitNode_new(unset_lit, sat_state->implied_literals, NULL);
-            if (sat_state->implied_literals != NULL) {
-                sat_state->implied_literals->next = lnode;
-            }
-            sat_state->implied_literals = lnode;
-            //printf("literal %ld implied\n", unset_lit->index);
-            // restart iteration
-            for(c2dSize j = 0; j < unset_lit->n_clauses; ++j)
-                if (unset_lit->clauses[j]->subsumed_level == 0)
-                    unset_lit->clauses[j]->subsumed_level = 
-                        sat_state->current_level;
+            imply_literal(unset_lit, clause, sat_state);
             conflict_clause = unit_resolution_helper(
                 sat_index2literal(-sat_literal_index(unset_lit), sat_state),
                 sat_state);
