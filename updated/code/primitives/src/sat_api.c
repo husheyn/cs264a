@@ -664,8 +664,10 @@ Clause* unit_resolution_helper(Lit* cur, SatState* sat_state) {
                 Lit * comp_lit = sat_index2literal(-sat_literal_index(lit),
                                  sat_state);
                 if (!sat_implied_literal(lit) && 
-                    !sat_implied_literal(comp_lit))
+                    !sat_implied_literal(comp_lit)) {
                     unset_lit = lit;
+                    break;
+                }
             }
             imply_literal(unset_lit, clause, sat_state);
             conflict_clause = unit_resolution_helper(
