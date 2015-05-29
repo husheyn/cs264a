@@ -587,18 +587,83 @@ void sat_state_free(SatState* sat_state) {
  * Yet, the first decided literal must have 2 as its decision level
  ******************************************************************************/
 
+// uip 0 - unset, 1 - cannot reach, 2 - can reach, 3 - removed
+BOOLEAN uip_backtrack(Lit* cur, c2dSize* uip, c2dSize n, Lit* decide) {
+    if (uip[cur->index+n] == 3) return 0;
+    else if (cur == decide) return 1;
+    else {
+        Lit ** implied_by = cur->implied_by;
+        if (implied_by == NULL) return 0;
+        for (c2dSize i = 0; i < cur->n_implied_by; i ++) {
+            c2dSize v_index = implied_by[i]->index + n;
+            if (uip[v_index] == 0) {
+                uip[v_index] = uip_backtrack(implied_by[i], uip, n, decide) == 0 ? 1 : 2;
+            }
+            if (uip[v_index] == 2) return 1;
+        }
+    }
+    return 0;
+}
+
+Lit * uip_find(Clause * clause, SatState * sat_state) {
+    Lit ** bfs_queue = malloc(sizeof(Lit*) * (2 * sat_state->n));
+    BOOLEAN * checked = malloc(sizeof(BOOLEAN) * (2 * sat_state->n));
+    for (c2dSize i = 0; i < sat_state->n * 2; i ++) checked[i] = 0;
+    c2dSize front = 0;
+    c2dSize back = 0;
+    Lit ** lits = clause->literals;
+    Lit * conflict_lit = Lit_new(0);
+    conflict_lit->n_implied_by = clause->n_literals;
+    Lit ** clits = malloc(sizeof(Lit*) * clause->n_literals);
+    for (c2dSize i = 0; i < clause->n_literals; i ++) {
+        clits[i] = sat_index2literal(-lits[i]->index, sat_state);
+    }
+    conflict_lit->implied_by = clits;
+    bfs_queue[back++] = conflict_lit;
+    while (front != back) {
+        c2dSize * uip = malloc(sizeof(c2dSize) * sat_state->n * 2+1);
+        for (c2dSize i = 0; i < sat_state->n*2+1; i ++) {
+            uip[i] = 0;
+        }
+        uip[bfs_queue[front]->index+sat_state->n] = 3;
+        checked[bfs_queue[front]->index+sat_state->n] = 1;
+        if (bfs_queue[front] != conflict_lit
+            &&!uip_backtrack(conflict_lit, uip, sat_state->n, sat_state->decided_literals->literal)) {
+            Lit * res = bfs_queue[front];
+            free(bfs_queue);
+            free(checked);
+            Lit_delete(conflict_lit);
+            return res;
+        }
+        Lit ** lits = bfs_queue[front]->implied_by;
+        for (c2dSize i = 0; i < bfs_queue[front]->n_implied_by; i ++) {
+            if (checked[lits[i]->index+sat_state->n] == 0) {
+                bfs_queue[back++] = lits[i];
+            }
+        }
+        front ++;
+        free(uip);
+    }
+    free(bfs_queue);
+    free(checked);
+    Lit_delete(conflict_lit);
+    return NULL;
+}
+
 void backtrack(Lit* cur, Lit** marks, c2dSize highest_level, 
-    BOOLEAN* visited, c2dSize n) {
+    BOOLEAN* visited, c2dSize n, Lit * first_uip) {
+    
     if (visited[cur->index + n]) return;
     visited[cur->index + n] = 1;
     if (cur->decision_level < highest_level ||
-        (cur->decision_level == highest_level && cur->implied_by == NULL)) {
+        (cur == first_uip)) {
         c2dSize id = cur->index + n;
         marks[id] = cur;
     } else {
         for(c2dSize i = 0; i < cur->n_implied_by; ++i)
-            backtrack(cur->implied_by[i], marks, highest_level, visited, n);
+            backtrack(cur->implied_by[i], marks, highest_level, visited, n, first_uip);
     }
+     
 }
 
 Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
@@ -610,9 +675,11 @@ Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
         marks[i] = NULL;
     for(c2dSize i = 0; i <= sat_state->n * 2; ++i)
         visited[i] = 0;
+    // first_uip shouldn't be NULL here
+    Lit * first_uip = uip_find(clause, sat_state);
     for(c2dSize i = 0; i < clause->n_literals; ++i)
         backtrack(sat_index2literal(-clause->literals[i]->index, sat_state),
-                  marks, highest_level, visited, sat_state->n);
+                  marks, highest_level, visited, sat_state->n, first_uip);
     c2dSize cnt = 0;
     for(c2dSize i = 0; i <= sat_state->n * 2; ++i)
         if (marks[i] != NULL)
@@ -634,7 +701,9 @@ Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
     free(marks);
     free(visited);
     return res;
+    
 }
+
 
 Clause* unit_find_watches(Clause * clause, c2dSize index, SatState * sat_state) {
     Lit ** literals = clause->literals;
