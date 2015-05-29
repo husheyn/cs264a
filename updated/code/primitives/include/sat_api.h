@@ -147,6 +147,7 @@ typedef struct sat_state_t {
     LitNode* decided_literals;
     LitNode* implied_literals;
     Clause* asserted_clause;
+    BOOLEAN from_decision;
 } SatState;
 
 /******************************************************************************
