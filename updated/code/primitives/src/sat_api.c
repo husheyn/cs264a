@@ -823,6 +823,7 @@ BOOLEAN sat_unit_resolution(SatState* sat_state) {
             }
             if (clause->watch_lit1 == NULL) conflict_clause = clause;
             else if (clause->watch_lit2 == NULL) {
+                clause->watch_lit2 = clause->watch_lit1;
                 clause->subsumed_level = sat_state->current_level;
                 imply_literal(clause->watch_lit1, clause, sat_state);
                 conflict_clause = unit_resolution_helper(clause->watch_lit1, sat_state);
