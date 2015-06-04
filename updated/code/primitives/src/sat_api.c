@@ -502,6 +502,10 @@ SatState* sat_state_new(const char* file_name) {
                     if (tmp == 0) break;
                     ++n_literals;
                 }
+                if (n_literals == 0) {
+                    --i;
+                    continue;
+                }
                 Lit** literals = malloc(sizeof(Lit*) * n_literals);
                 line = ptr;
                 for(c2dSize j = 0; j < n_literals; ++j) {
