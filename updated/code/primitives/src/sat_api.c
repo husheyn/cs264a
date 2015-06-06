@@ -246,7 +246,7 @@ void imply_literal(Lit* unset_lit, Clause* clause, SatState* sat_state) {
  * Clauses 
  ******************************************************************************/
 
-Clause* Clause_new(c2dSize id, Lit** literals, c2dSize n_literals) {
+Clause* Clause_new(c2dSize id, Lit** literals, c2dSize n_literals, c2dSize m) {
     Clause* clause = malloc(sizeof(Clause));
     clause->index = id;
     clause->literals = literals;
@@ -254,25 +254,26 @@ Clause* Clause_new(c2dSize id, Lit** literals, c2dSize n_literals) {
     for(c2dSize i = 0; i < n_literals; ++i) {
         Var* var = sat_literal_var(literals[i]);
         // var
-        if (var->clauses_buf_len == 0) {
-            var->clauses_buf_len = 1;
-            var->n_clauses = 1;
-            var->clauses = malloc(sizeof(Clause*) * var->clauses_buf_len);
-            var->clauses[0] = clause;
-        } else if (var->n_clauses == var->clauses_buf_len) {
-            var->clauses_buf_len *= 2;
-            Clause** tmp = malloc(sizeof(Clause*) * var->clauses_buf_len);
-            for(c2dSize i = 0; i < var->n_clauses; ++i)
-                tmp[i] = var->clauses[i];
-            tmp[var->n_clauses] = clause;
-            ++var->n_clauses;
-            free(var->clauses);
-            var->clauses = tmp;
-        } else {
-            var->clauses[var->n_clauses] = clause;
-            ++var->n_clauses;
+        if (id <= m) {
+            if (var->clauses_buf_len == 0) {
+                var->clauses_buf_len = 1;
+                var->n_clauses = 1;
+                var->clauses = malloc(sizeof(Clause*) * var->clauses_buf_len);
+                var->clauses[0] = clause;
+            } else if (var->n_clauses == var->clauses_buf_len) {
+                var->clauses_buf_len *= 2;
+                Clause** tmp = malloc(sizeof(Clause*) * var->clauses_buf_len);
+                for(c2dSize i = 0; i < var->n_clauses; ++i)
+                    tmp[i] = var->clauses[i];
+                tmp[var->n_clauses] = clause;
+                ++var->n_clauses;
+                free(var->clauses);
+                var->clauses = tmp;
+            } else {
+                var->clauses[var->n_clauses] = clause;
+                ++var->n_clauses;
+            }
         }
-
         // literal
         Lit* lit = literals[i];
         if (lit->clauses_buf_len == 0) {
@@ -518,7 +519,7 @@ SatState* sat_state_new(const char* file_name) {
                     literals[j] = lit;
                 }
                 state->CNF_clauses[i - 1] = Clause_new(i, literals, 
-                                                  n_literals);
+                                                  n_literals, state->m);
             }
             break; //while
         }
@@ -703,7 +704,7 @@ Clause* construct_asserted_clause(Clause* clause, SatState* sat_state) {
                 assertion_level = marks[i]->decision_level;
         }
     Clause* res = Clause_new(sat_clause_count(sat_state) + 
-        sat_learned_clause_count(sat_state) + 1, lits, cnt);
+        sat_learned_clause_count(sat_state) + 1, lits, cnt, sat_state->m);
     res->assertion_level = cnt == 1 ? 1 : assertion_level;
     free(marks);
     free(visited);

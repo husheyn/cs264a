@@ -124,7 +124,7 @@ struct clause {
     BOOLEAN mark; //THIS FIELD MUST STAY AS IS
 };
 
-Clause* Clause_new(c2dSize id, Lit** literals, c2dSize n_literals);
+Clause* Clause_new(c2dSize id, Lit** literals, c2dSize n_literals, c2dSize);
 void Clause_delete(Clause* clause);
 
 /******************************************************************************
